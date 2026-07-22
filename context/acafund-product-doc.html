@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AcaFund — Product Idea Document</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:        #0E0E0F;
+    --ink-muted:  #5A5A65;
+    --ink-faint:  #9A9AA5;
+    --bg:         #F7F6F2;
+    --surface:    #FFFFFF;
+    --border:     #E2E1DC;
+    --green:      #1A6B45;
+    --green-mid:  #2A8F5E;
+    --green-pale: #D4EDE1;
+    --amber:      #B45309;
+    --amber-pale: #FEF3C7;
+    --blue-pale:  #EEF2FF;
+    --blue:       #3730A3;
+    --accent:     #1A6B45;
+    --mono:       'JetBrains Mono', monospace;
+    --serif:      'Instrument Serif', Georgia, serif;
+    --sans:       'Inter', system-ui, sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── COVER ── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: var(--ink);
+    color: #fff;
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 80% 30%, rgba(26,107,69,0.35) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 10% 80%, rgba(26,107,69,0.15) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .cover-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #2A8F5E;
+    margin-bottom: 28px;
+  }
+
+  .cover-title {
+    font-family: var(--serif);
+    font-size: clamp(64px, 10vw, 120px);
+    line-height: 0.9;
+    font-weight: 400;
+    letter-spacing: -2px;
+    color: #fff;
+    margin-bottom: 24px;
+  }
+
+  .cover-title span {
+    font-style: italic;
+    color: #2A8F5E;
+  }
+
+  .cover-tagline {
+    font-size: 18px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.65);
+    max-width: 540px;
+    margin-bottom: 56px;
+    line-height: 1.55;
+  }
+
+  .cover-stats {
+    display: flex;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+
+  .cover-stat-num {
+    font-family: var(--serif);
+    font-size: 36px;
+    color: #fff;
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .cover-stat-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    font-family: var(--mono);
+  }
+
+  .cover-version {
+    position: absolute;
+    bottom: 40px;
+    right: 60px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── LAYOUT ── */
+  .doc {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 80px 40px;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    color: var(--ink);
+    margin-bottom: 32px;
+  }
+
+  .section-title em {
+    font-style: italic;
+    color: var(--green);
+  }
+
+  .lead {
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--ink-muted);
+    line-height: 1.7;
+    max-width: 680px;
+    margin-bottom: 48px;
+  }
+
+  section {
+    margin-bottom: 100px;
+  }
+
+  p {
+    margin-bottom: 16px;
+    color: var(--ink-muted);
+    font-weight: 300;
+  }
+
+  /* ── DIVIDER ── */
+  .rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 64px 0;
+  }
+
+  /* ── PULL QUOTE ── */
+  .pullquote {
+    border-left: 3px solid var(--green);
+    padding: 20px 28px;
+    margin: 40px 0;
+    background: var(--green-pale);
+    border-radius: 0 8px 8px 0;
+  }
+
+  .pullquote p {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-style: italic;
+    color: var(--green);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* ── PROBLEM CHAT ── */
+  .chat-box {
+    background: #1C1C1E;
+    border-radius: 16px;
+    padding: 28px;
+    margin: 40px 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: rgba(255,255,255,0.75);
+    line-height: 2;
+  }
+
+  .chat-box .chat-header {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .chat-msg { display: flex; gap: 10px; align-items: baseline; margin-bottom: 2px; }
+  .chat-name { color: #2A8F5E; min-width: 80px; font-size: 11px; }
+  .chat-text { color: rgba(255,255,255,0.8); }
+  .chat-rep .chat-name { color: #F59E0B; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 40px 0;
+    position: relative;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 20px 0;
+  }
+
+  .flow-step:not(:last-child) {
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .flow-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--green-pale);
+    border: 2px solid var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--green);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .flow-content strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .flow-content span {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 300;
+  }
+
+  /* ── FEATURE GRID ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    margin: 40px 0;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--green-mid);
+    box-shadow: 0 4px 20px rgba(26,107,69,0.08);
+  }
+
+  .feature-icon {
+    font-size: 22px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .feature-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .feature-card p {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  /* ── ROLE TABLE ── */
+  .role-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 32px 0;
+    font-size: 13px;
+  }
+
+  .role-table th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px 10px 0;
+  }
+
+  .role-table td {
+    padding: 14px 16px 14px 0;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-muted);
+    font-weight: 300;
+  }
+
+  .role-table td:first-child {
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 500;
+    margin-right: 4px;
+    margin-bottom: 2px;
+  }
+
+  .badge-green  { background: var(--green-pale); color: var(--green); }
+  .badge-amber  { background: var(--amber-pale); color: var(--amber); }
+  .badge-blue   { background: var(--blue-pale);  color: var(--blue); }
+  .badge-gray   { background: #F0F0F0; color: #555; }
+
+  /* ── TECH STACK ── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .stack-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+
+  .stack-layer {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+  }
+
+  .stack-tech {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .stack-reason {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  /* ── REVENUE TABLE ── */
+  .rev-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 32px 0;
+  }
+
+  .rev-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px 10px 0;
+    text-align: left;
+  }
+
+  .rev-table td {
+    padding: 14px 12px 14px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-muted);
+    font-weight: 300;
+    vertical-align: top;
+  }
+
+  .rev-table td:first-child { font-weight: 600; color: var(--ink); }
+
+  .price-tag {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--ink);
+  }
+
+  /* ── MARKET NUMBERS ── */
+  .market-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin: 40px 0;
+  }
+
+  @media (max-width: 600px) { .market-numbers { grid-template-columns: 1fr; } }
+
+  .market-num-card {
+    background: var(--ink);
+    color: #fff;
+    border-radius: 12px;
+    padding: 28px 24px;
+  }
+
+  .market-num-card .num {
+    font-family: var(--serif);
+    font-size: 40px;
+    line-height: 1;
+    color: #fff;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .market-num-card .num span { color: #2A8F5E; }
+
+  .market-num-card .label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.45);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  /* ── USER JOURNEY ── */
+  .journey {
+    position: relative;
+    padding-left: 40px;
+    margin: 40px 0;
+  }
+
+  .journey::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .journey-step {
+    position: relative;
+    margin-bottom: 36px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .journey-step::before {
+    content: '';
+    position: absolute;
+    left: -34px;
+    top: 20px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    border: 2px solid var(--bg);
+  }
+
+  .journey-step .who {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+
+  .journey-step h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .journey-step p {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 0;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  /* ── CLOSING ── */
+  .closing {
+    background: var(--ink);
+    color: #fff;
+    padding: 80px 60px;
+    text-align: center;
+  }
+
+  .closing-title {
+    font-family: var(--serif);
+    font-size: clamp(36px, 6vw, 72px);
+    line-height: 1.05;
+    font-weight: 400;
+    letter-spacing: -1.5px;
+    margin-bottom: 24px;
+  }
+
+  .closing-title em {
+    font-style: italic;
+    color: #2A8F5E;
+  }
+
+  .closing p {
+    font-size: 16px;
+    color: rgba(255,255,255,0.5);
+    max-width: 560px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── COMPARISON ── */
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1fr 40px 1fr;
+    gap: 0;
+    margin: 40px 0;
+    align-items: stretch;
+  }
+
+  .compare-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .compare-col.old { border-color: #FECACA; background: #FFF5F5; }
+  .compare-col.new { border-color: var(--green-mid); background: var(--green-pale); }
+
+  .compare-col h4 {
+    font-size: 12px;
+    font-family: var(--mono);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+  }
+
+  .compare-col.old h4 { color: #DC2626; }
+  .compare-col.new h4 { color: var(--green); }
+
+  .compare-col ul { list-style: none; }
+  .compare-col ul li {
+    font-size: 13px;
+    color: var(--ink-muted);
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  .compare-col ul li:last-child { border-bottom: none; }
+
+  .compare-vs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-faint);
+  }
+
+  /* ── HACK DEMO ── */
+  .demo-scene {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin: 20px 0;
+  }
+
+  .demo-scene .scene-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+  }
+
+  .demo-scene h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+
+  .demo-scene p {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 0;
+    font-weight: 300;
+  }
+
+  /* ── TAGS LIST ── */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0;
+  }
+
+  .tag {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-muted);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    .cover { padding: 60px 28px; }
+    .doc   { padding: 60px 24px; }
+    .compare-row { grid-template-columns: 1fr; }
+    .compare-vs  { display: none; }
+    .closing { padding: 60px 28px; }
+    .cover-stats { gap: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-eyebrow">Product Idea Document &nbsp;·&nbsp; v1.0 &nbsp;·&nbsp; Confidential</div>
+  <h1 class="cover-title">Aca<span>Fund</span></h1>
+  <p class="cover-tagline">The financial operating system for African student communities. Collect, verify, govern, and report on every naira your class ever touches.</p>
+  <div class="cover-stats">
+    <div>
+      <span class="cover-stat-num">1.8M+</span>
+      <span class="cover-stat-label">UNILAG-scale total students in Nigeria's top 10 universities</span>
+    </div>
+    <div>
+      <span class="cover-stat-num">₦0</span>
+      <span class="cover-stat-label">Currently automated in informal student collection flows</span>
+    </div>
+    <div>
+      <span class="cover-stat-num">7-step</span>
+      <span class="cover-stat-label">Manual process AcaFund collapses to one link</span>
+    </div>
+  </div>
+  <div class="cover-version">ACAFUND · PRODUCT BRIEF · 2026</div>
+</div>
+
+<!-- DOCUMENT BODY -->
+<div class="doc">
+
+  <!-- 01 THE PROBLEM -->
+  <section id="problem">
+    <div class="section-label">01 &nbsp; The Problem</div>
+    <h2 class="section-title">Money moves digitally.<br><em>Accountability stays manual.</em></h2>
+    <p class="lead">Every Nigerian student has lived this. The class decides to pool money. A rep shares an account number on WhatsApp. Screenshots flood in. Trust becomes the infrastructure.</p>
+
+    <div class="chat-box">
+      <div class="chat-header">STATS 200 DEPARTMENTAL — WhatsApp Group &nbsp;·&nbsp; 234 members</div>
+      <div class="chat-msg"><span class="chat-name chat-rep">Class Rep</span><span class="chat-text">Everyone should pay ₦5,000 before Friday. Send receipt here.</span></div>
+      <div class="chat-msg"><span class="chat-name">Tolu</span><span class="chat-text">Done. Please confirm.</span></div>
+      <div class="chat-msg"><span class="chat-name">David</span><span class="chat-text">Check your account. I sent mine.</span></div>
+      <div class="chat-msg"><span class="chat-name">Amaka</span><span class="chat-text">I paid yesterday, why is my name not on the list?</span></div>
+      <div class="chat-msg"><span class="chat-name">Seun</span><span class="chat-text">Who has paid so far? Can someone post the list?</span></div>
+      <div class="chat-msg"><span class="chat-name chat-rep">Class Rep</span><span class="chat-text">Please give me time to verify everything. I have 87 screenshots.</span></div>
+      <div class="chat-msg"><span class="chat-name">Chidera</span><span class="chat-text">How much have we collected in total?</span></div>
+      <div class="chat-msg"><span class="chat-name">Unknown</span><span class="chat-text">Oga where did the ₦200k go from last collection?</span></div>
+    </div>
+
+    <p>The class rep is now simultaneously cashier, accountant, auditor, customer support agent, and defendant. All inside WhatsApp. All manually. All unpaid.</p>
+
+    <div class="pullquote">
+      <p>The problem is not that students refuse to pay. The problem is that the infrastructure around collection is broken. Payment is digital. Everything that comes after is not.</p>
+    </div>
+
+    <p>This problem repeats across every class, every department, every student association, every hackathon team, and every religious group inside every university in Nigeria. Multiply that across Africa and the scale is enormous.</p>
+
+    <div class="compare-row">
+      <div class="compare-col old">
+        <h4>Today's workflow</h4>
+        <ul>
+          <li>Rep shares bank details on WhatsApp</li>
+          <li>Students transfer money to personal account</li>
+          <li>Screenshots flood the group chat</li>
+          <li>Rep manually verifies each screenshot</li>
+          <li>Rep updates a spreadsheet with names</li>
+          <li>Someone disputes their name is missing</li>
+          <li>Someone asks "where did the money go?"</li>
+          <li>Rep spends hours defending themselves</li>
+        </ul>
+      </div>
+      <div class="compare-vs">vs</div>
+      <div class="compare-col new">
+        <h4>AcaFund workflow</h4>
+        <ul>
+          <li>Rep creates a collection in 60 seconds</li>
+          <li>AcaFund generates a payment link</li>
+          <li>Student pays via Monnify</li>
+          <li>Payment auto-verified via webhook</li>
+          <li>Ledger updates in real time</li>
+          <li>Everyone sees the live dashboard</li>
+          <li>Expense requests go through approval</li>
+          <li>Transparency report auto-generated</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 02 THE PRODUCT -->
+  <section id="product">
+    <div class="section-label">02 &nbsp; The Product</div>
+    <h2 class="section-title"><em>AcaFund</em> — not a payment app.<br>A financial operating system.</h2>
+    <p class="lead">AcaFund manages the entire lifecycle of collective student money: from the moment a class decides to pool funds, to the final expense report that closes the books.</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot">1</div>
+        <div class="flow-content">
+          <strong>PLAN</strong>
+          <span>Create a collection with a purpose, amount per member, deadline, and budget allocation breakdown before a single naira is sent.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">2</div>
+        <div class="flow-content">
+          <strong>COLLECT</strong>
+          <span>A shareable Monnify-powered payment link is generated. Students pay from any bank, any device. No account number. No receipts.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">3</div>
+        <div class="flow-content">
+          <strong>VERIFY</strong>
+          <span>Monnify webhooks hit AcaFund's backend. Payment is confirmed automatically. Student status flips to PAID. No manual checking.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">4</div>
+        <div class="flow-content">
+          <strong>RECONCILE</strong>
+          <span>The treasury ledger updates in real time. Every payment is timestamped, referenced, and tied to a member. Disputes die at this step.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">5</div>
+        <div class="flow-content">
+          <strong>GOVERN</strong>
+          <span>Expense requests go through a role-based approval chain. The Treasurer reviews. The Auditor signs off. Nothing leaves without a trail.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">6</div>
+        <div class="flow-content">
+          <strong>SPEND</strong>
+          <span>Approved expenses are recorded against the treasury. Every naira is categorised. The balance is always known.</span>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot">7</div>
+        <div class="flow-content">
+          <strong>REPORT</strong>
+          <span>A shareable transparency report is auto-generated. The class sees exactly what was collected, what was spent, and what remains. Trust is not required because proof is automatic.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 03 FEATURES -->
+  <section id="features">
+    <div class="section-label">03 &nbsp; Core Features</div>
+    <h2 class="section-title">Built for the <em>real</em><br>problems, not the obvious ones.</h2>
+    <p class="lead">Every feature in AcaFund was designed because someone who lived through student finance chaos needed it. Nothing is hypothetical.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🏦</span>
+        <h4>Class Treasury</h4>
+        <p>A persistent financial workspace per student community. Collections, expenses, approvals, and balances all live in one place with a full audit trail.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔗</span>
+        <h4>Monnify Payment Links</h4>
+        <p>One link per collection. Students pay from any Nigerian bank. Webhook verification eliminates manual receipt checking entirely.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🎯</span>
+        <h4>Purpose-Bound Collections</h4>
+        <p>Every collection is tied to an intent and a budget breakdown before money moves. No ambiguity about what funds are for.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">✅</span>
+        <h4>Role-Based Governance</h4>
+        <p>Admins, Treasurers, Auditors, and Members each have distinct permissions. Expenses above a threshold require multi-party approval.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h4>Live Dashboard</h4>
+        <p>Real-time view of collected vs target, paid vs pending members, approved expenses, and current treasury balance. Always current, never manual.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤖</span>
+        <h4>Treasury AI Assistant</h4>
+        <p>Ask natural language questions about your treasury. "Who hasn't paid?" "How much did we spend on the dinner?" "What's our current balance?" Answers come from verified data, not memory.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📄</span>
+        <h4>Transparency Report</h4>
+        <p>Auto-generated shareable financial summary for any collection or time period. The class rep sends a link, not an explanation.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔔</span>
+        <h4>Smart Reminders</h4>
+        <p>AcaFund sends automated WhatsApp or email nudges to unpaid members. The rep stops chasing people manually.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🏷️</span>
+        <h4>Sub-Budget Allocation</h4>
+        <p>Before collection, define how the money will be split: venue, food, transport, contingency. Members see the plan before they pay.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 04 THE STORY -->
+  <section id="story">
+    <div class="section-label">04 &nbsp; The Story</div>
+    <h2 class="section-title">Meet <em>Aisha</em>.<br>She didn't sign up for this.</h2>
+
+    <p>Aisha is the class representative of a 200-level Statistics class. She is a good student, well-liked, and organized. When the class decided to raise ₦1,000,000 for their end-of-year project, they trusted her to handle it.</p>
+
+    <p>Nobody told her that "handling it" meant becoming an unpaid bank employee.</p>
+
+    <div class="journey">
+      <div class="journey-step">
+        <div class="who">Day 1</div>
+        <h4>She sends the collection message</h4>
+        <p>Account details go to WhatsApp. ₦5,000 per student. "Send your receipt." 200 people read the message. 40 people pay in the first hour.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Day 1 — 3 hours later</div>
+        <h4>The screenshots begin</h4>
+        <p>Her phone has 87 new messages. Each one is a payment screenshot in a different format, from a different bank app, with a different reference number. She opens her banking app to cross-check.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Day 2</div>
+        <h4>The disputes start</h4>
+        <p>"I paid yesterday, why is my name not on the list?" She checks again. The money is there. She just missed the transfer in the flood of notifications. She apologises and adds the name manually to Excel.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Day 5</div>
+        <h4>The accountability questions arrive</h4>
+        <p>"How much have we collected?" "Who still hasn't paid?" "What happens to the money if we don't hit the target?" She answers each one individually, from memory, while also attending lectures.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Week 3 — After spending begins</div>
+        <h4>The hardest question</h4>
+        <p>"Aisha, the class contributed ₦1 million. We spent ₦700k on the project. Where is the ₦300k?" She has receipts, but they're scattered across WhatsApp, her notes app, and one PDF on her phone. She spends a weekend reconstructing the record.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">With AcaFund</div>
+        <h4>None of this happens</h4>
+        <p>Aisha creates the collection in 60 seconds. Students pay through the link. The dashboard shows who paid and who hasn't. Expenses go through an approval flow. The transparency report answers every question before anyone asks it. Aisha attends her lectures.</p>
+      </div>
+    </div>
+
+    <div class="pullquote">
+      <p>AcaFund does not just protect students from a disorganised class rep. It protects a good class rep from a broken system.</p>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 05 USE CASES -->
+  <section id="use-cases">
+    <div class="section-label">05 &nbsp; Use Cases</div>
+    <h2 class="section-title">One platform.<br><em>Every</em> community that pools money.</h2>
+    <p class="lead">The infrastructure AcaFund builds for class dues is the same infrastructure that serves every other informal financial community inside a university.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🎓</span>
+        <h4>Class Contributions</h4>
+        <p>Class dues, project contributions, class dinners, graduation funds, class gifts, end-of-year parties.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🏛️</span>
+        <h4>Student Associations</h4>
+        <p>Departmental and faculty events, freshers' activities, association projects, inter-school competitions.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">✈️</span>
+        <h4>Trips and Excursions</h4>
+        <p>Multi-category collection for transport, accommodation, feeding, and registration under one trip budget.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💻</span>
+        <h4>Hackathon Teams</h4>
+        <p>Teams pool money for registration, transport, accommodation, and materials. AcaFund tracks every kobo of the shared budget.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📦</span>
+        <h4>Group Purchases</h4>
+        <p>Bulk orders for books, lab equipment, jerseys, merchandise, or internet subscriptions. Everyone pays their share, AcaFund tracks the order.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤝</span>
+        <h4>Welfare and Emergency Funds</h4>
+        <p>Spontaneous class contributions for a sick classmate, bereavement support, or emergency situations. Quick setup, clear accountability.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⛪</span>
+        <h4>Campus Religious Groups</h4>
+        <p>Monthly dues, program funding, welfare contributions, and campus outreach budgets for SUG affiliates and campus fellowships.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🏆</span>
+        <h4>Sports and Clubs</h4>
+        <p>Tournament fees, jersey purchases, equipment funds, and end-of-season events for campus sports teams and hobby clubs.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🎤</span>
+        <h4>Alumni Networks</h4>
+        <p>The same graduating class will return as alumni needing to pool money for reunions, mentorship programs, and scholarship funds. AcaFund grows with them.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 06 ROLES -->
+  <section id="governance">
+    <div class="section-label">06 &nbsp; Governance Model</div>
+    <h2 class="section-title">Accountability is<br><em>structural</em>, not personal.</h2>
+    <p class="lead">The most dangerous point in student finance is when one person controls both collection and spending. AcaFund replaces personal trust with structural checks.</p>
+
+    <table class="role-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Permissions</th>
+          <th>Key Responsibility</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Admin</td>
+          <td>
+            <span class="badge badge-green">Create collections</span>
+            <span class="badge badge-green">Manage members</span>
+            <span class="badge badge-green">Full treasury access</span>
+          </td>
+          <td>Class rep or community leader. Sets up the community, creates collections, and manages membership.</td>
+        </tr>
+        <tr>
+          <td>Treasurer</td>
+          <td>
+            <span class="badge badge-blue">Initiate expenses</span>
+            <span class="badge badge-blue">View full ledger</span>
+          </td>
+          <td>Can propose expenses and see all financial records. Cannot approve their own requests.</td>
+        </tr>
+        <tr>
+          <td>Auditor</td>
+          <td>
+            <span class="badge badge-amber">Approve expenses</span>
+            <span class="badge badge-amber">Read-only treasury</span>
+          </td>
+          <td>Independent check. Reviews and approves or rejects expense requests. Cannot initiate spending.</td>
+        </tr>
+        <tr>
+          <td>Member</td>
+          <td>
+            <span class="badge badge-gray">Pay via link</span>
+            <span class="badge badge-gray">View transparency report</span>
+          </td>
+          <td>Standard student. Pays through the link. Sees the public dashboard and transparency report.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>For expenses above a configurable threshold (e.g. ₦50,000), AcaFund requires both Treasurer initiation and Auditor approval before the expense is recorded. This mirrors how real organizations work, applied to the scale of a 200-person university class.</p>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 07 USER JOURNEY -->
+  <section id="user-journey">
+    <div class="section-label">07 &nbsp; User Journey</div>
+    <h2 class="section-title">From first visit<br>to <em>verified ledger</em> in 5 minutes.</h2>
+
+    <div class="journey">
+      <div class="journey-step">
+        <div class="who">Admin — Onboarding</div>
+        <h4>Create a Community</h4>
+        <p>Sign up with a university email. Create a community: "Data Science 200L." Add members by bulk-uploading a CSV or sharing an invite link.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Admin — Collection Setup</div>
+        <h4>Launch a Collection</h4>
+        <p>Name: "End of Year Project." Amount: ₦5,000 per student. Deadline: July 30. Budget allocation: materials 60%, transport 20%, venue 15%, contingency 5%. One click to publish.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Member — Payment</div>
+        <h4>Student Receives a Link</h4>
+        <p>AcaFund sends a personalised payment link via WhatsApp or email. Student opens it, sees the collection purpose and budget breakdown, pays via Monnify. Done in under 2 minutes.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">System — Verification</div>
+        <h4>Automatic Reconciliation</h4>
+        <p>Monnify webhook fires. AcaFund confirms the payment. The student's status updates to PAID. The dashboard counters update. No human involved.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Admin — During Collection</div>
+        <h4>Monitor the Dashboard</h4>
+        <p>The rep sees live progress. Clicks one button to send reminders to all unpaid members. No individual chasing. No spreadsheet updates.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Treasurer — Spending</div>
+        <h4>Submit an Expense Request</h4>
+        <p>Treasurer creates: "Venue deposit — ₦150,000." Uploads receipt. Auditor gets a notification. Approves. Expense is recorded against the treasury balance.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">All Members — Closure</div>
+        <h4>Transparency Report Published</h4>
+        <p>Admin closes the collection. AcaFund generates a full financial summary. Members receive a link. Every question the class could ask is already answered in the report.</p>
+      </div>
+      <div class="journey-step">
+        <div class="who">Admin — AI Assist (any time)</div>
+        <h4>Ask the Treasury Assistant</h4>
+        <p>"How much have we collected?" "Who still hasn't paid?" "What is our balance after the venue deposit?" Instant answers, sourced from verified ledger data.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 08 TECH STACK -->
+  <section id="tech">
+    <div class="section-label">08 &nbsp; Tech Stack</div>
+    <h2 class="section-title">Built to <em>ship fast</em><br>and scale further.</h2>
+    <p class="lead">The stack is chosen for speed to hackathon demo, clean architecture, and a clear path to production scale.</p>
+
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-layer">Frontend</div>
+        <div class="stack-tech">Next.js 14 + TypeScript</div>
+        <div class="stack-reason">App Router for clean layout separation. Server components for fast dashboard loads. TailwindCSS for rapid UI.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Backend</div>
+        <div class="stack-tech">Node.js + Express</div>
+        <div class="stack-reason">REST API with clean route separation for collections, members, payments, expenses, and approvals.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Database</div>
+        <div class="stack-tech">PostgreSQL + Prisma</div>
+        <div class="stack-reason">Relational schema for financial records. Prisma for type-safe queries and fast schema iteration during the hackathon.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Payments</div>
+        <div class="stack-tech">Monnify API</div>
+        <div class="stack-reason">Payment link generation, webhook-based auto-verification. Reserved accounts for persistent collection pools. The actual financial infrastructure.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">AI Layer</div>
+        <div class="stack-tech">Claude API (Sonnet 4.6)</div>
+        <div class="stack-reason">Treasury Assistant queries a structured context built from verified ledger data. Grounded AI: no hallucinated balances.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Auth</div>
+        <div class="stack-tech">NextAuth + JWT</div>
+        <div class="stack-reason">Email-based auth with university email validation. Role tokens embedded in JWT for efficient permission checks.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Notifications</div>
+        <div class="stack-tech">Twilio / WhatsApp Cloud API</div>
+        <div class="stack-reason">Payment confirmations, reminder nudges, and expense approval alerts sent where students actually live: WhatsApp.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Hosting</div>
+        <div class="stack-tech">Railway / Vercel</div>
+        <div class="stack-reason">Fast deploys for demo day. Railway for backend and Postgres. Vercel for Next.js frontend. Both free tiers work for hackathon scale.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">File Storage</div>
+        <div class="stack-tech">Cloudinary</div>
+        <div class="stack-reason">Expense receipt uploads. Free tier covers hackathon usage. Secure URLs returned and stored against expense records.</div>
+      </div>
+    </div>
+
+    <div class="pullquote">
+      <p>The architecture is built so that Monnify is not a bolt-on feature. It is the backbone. Every collection, every verification, every ledger entry flows through it.</p>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 09 REVENUE MODEL -->
+  <section id="revenue">
+    <div class="section-label">09 &nbsp; Revenue Model</div>
+    <h2 class="section-title">Three honest ways<br>to <em>make money</em>.</h2>
+    <p class="lead">AcaFund does not extract value from students. It extracts value from the efficiency it creates. Every revenue stream is defensible and scales with usage.</p>
+
+    <table class="rev-table">
+      <thead>
+        <tr>
+          <th>Stream</th>
+          <th>Mechanism</th>
+          <th>Price Point</th>
+          <th>Why It Works</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Transaction Fee</td>
+          <td>A small percentage charged on each verified payment processed through AcaFund.</td>
+          <td><span class="price-tag">1.5%</span><br>per transaction</td>
+          <td>Scales directly with collection volume. A single class collecting ₦1M generates ₦15,000 in fees. Defensible because the product eliminates manual work worth far more.</td>
+        </tr>
+        <tr>
+          <td>AcaFund Pro</td>
+          <td>Subscription tier for student associations and large organizations needing advanced governance, export tools, and multi-community management.</td>
+          <td><span class="price-tag">₦5,000</span><br>per community/month</td>
+          <td>Departmental associations run year-round collections worth millions. They will pay for advanced reporting, role customization, and API access.</td>
+        </tr>
+        <tr>
+          <td>Institution Licensing</td>
+          <td>University SUGs or student affairs offices license AcaFund as the official platform for approved informal collections.</td>
+          <td><span class="price-tag">₦500k+</span><br>per institution/year</td>
+          <td>Creates defensible moat. A university that endorses AcaFund makes it the default for every class, every department, and every club on campus.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>A single 10,000-student university where classes average 5 collections per year at ₦5,000 per student generates approximately ₦37.5M in payment volume for AcaFund. At 1.5%, that is ₦562,500 in fees from one university alone, before Pro subscriptions.</p>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 10 MARKET -->
+  <section id="market">
+    <div class="section-label">10 &nbsp; Market</div>
+    <h2 class="section-title">The market is<br><em>hiding in plain sight</em>.</h2>
+    <p class="lead">Every university in Nigeria has the same problem. AcaFund starts narrow, wins deep, and expands naturally.</p>
+
+    <div class="market-numbers">
+      <div class="market-num-card">
+        <span class="num">2.<span>1</span>M</span>
+        <span class="label">Undergraduate students across Nigeria's federal and state universities</span>
+      </div>
+      <div class="market-num-card">
+        <span class="num">175<span>k</span></span>
+        <span class="label">Average class-level informal collections per year across Nigerian universities (estimated)</span>
+      </div>
+      <div class="market-num-card">
+        <span class="num">₦0</span>
+        <span class="label">Currently captured by any purpose-built platform. The entire market runs on WhatsApp and Excel.</span>
+      </div>
+    </div>
+
+    <p>The beachhead is obvious: UNILAG. The pitch is personal and lived. The problem is visible. A working product can spread through a single department by word-of-mouth before a formal marketing budget exists.</p>
+
+    <p>From UNILAG, the expansion path is natural: other federal universities (UI, OAU, ABU, UNIBEN), then polytechnics, then secondary school communities, then alumni networks, then cooperative groups. The same infrastructure serves all of them.</p>
+
+    <div class="tags">
+      <span class="tag">UNILAG</span>
+      <span class="tag">UI Ibadan</span>
+      <span class="tag">OAU Ile-Ife</span>
+      <span class="tag">ABU Zaria</span>
+      <span class="tag">UNIBEN</span>
+      <span class="tag">LASU</span>
+      <span class="tag">Covenant</span>
+      <span class="tag">Babcock</span>
+      <span class="tag">YABATECH</span>
+      <span class="tag">Ghana, Kenya next</span>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 11 HACKATHON DEMO -->
+  <section id="demo">
+    <div class="section-label">11 &nbsp; Hackathon Demo Arc</div>
+    <h2 class="section-title">Demo it like<br>a <em>movie</em>, not a tour.</h2>
+    <p class="lead">Do not open with the dashboard. Open with the pain. Let judges feel the problem before they see the solution.</p>
+
+    <div class="demo-scene">
+      <div class="scene-label">Scene 1 — The Problem (90 seconds)</div>
+      <h4>Show the chaos</h4>
+      <p>Display the WhatsApp mockup. "This is how 10,000 UNILAG students managed class money last semester." Count the screenshots. Count the hours. Name the class rep's invisible workload. Then pause.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 2 — Collection Creation (60 seconds)</div>
+      <h4>Rep creates the collection</h4>
+      <p>Live on screen: "Data Science 200L Project." ₦5,000 per student. 200 members. Budget allocation set. Publish. AcaFund generates a payment link. The work is done.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 3 — Student Pays (45 seconds)</div>
+      <h4>A student opens the link</h4>
+      <p>Open the link on a phone. Monnify checkout loads. Payment succeeds in the sandbox. Switch back to the dashboard. The counter has updated. Student is marked PAID. No screenshot. No manual entry.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 4 — Simulate Scale (30 seconds)</div>
+      <h4>Bulk-simulate 50 more payments</h4>
+      <p>Pre-seeded sandbox data populates the dashboard in real time. Judges watch the ledger grow. Collected vs outstanding updates live. The demo feels real because it is real.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 5 — Governance in Action (60 seconds)</div>
+      <h4>Treasurer submits an expense</h4>
+      <p>"Venue deposit — ₦150,000." Receipt uploaded. Auditor approves from a second browser tab. Treasury balance updates. Every step is logged. The trail is instant.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 6 — AI Treasury Assistant (60 seconds)</div>
+      <h4>Ask the AI three questions</h4>
+      <p>"How much have we collected?" "Who still hasn't paid?" "What is our balance after approved expenses?" The assistant answers from the actual ledger. Judges see AI grounded in real financial data, not a chatbot bolted on for the hackathon.</p>
+    </div>
+    <div class="demo-scene">
+      <div class="scene-label">Scene 7 — Transparency Report (30 seconds)</div>
+      <h4>Close with the report</h4>
+      <p>Open the shareable transparency page. "This is what Aisha sends instead of a WhatsApp explanation." Full financial summary. Every question already answered. Every naira accounted for.</p>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <!-- 12 PITCH -->
+  <section id="pitch">
+    <div class="section-label">12 &nbsp; The Pitch</div>
+    <h2 class="section-title">What you say<br>in <em>90 seconds</em>.</h2>
+
+    <div class="pullquote">
+      <p>In Nigerian universities, collecting money is digital. Managing it is not.</p>
+    </div>
+
+    <p>A class representative today can receive hundreds of payment screenshots on WhatsApp, manually verify each transfer, update a spreadsheet, chase students who already paid but were missed, and later defend themselves to the whole class about how shared funds were spent. This is not a software problem. It is a trust infrastructure problem disguised as a software problem.</p>
+
+    <p>AcaFund changes that. It is a payment and financial accountability platform for student communities. Using Monnify, AcaFund collects and verifies contributions automatically, reconciles payments against member lists without manual input, and gives every group a shared treasury for tracking collections, expenses, approvals, and balances in real time.</p>
+
+    <p>Instead of "Have you paid?" and "Where did the money go?" student communities get a verifiable financial record. The class rep stops being the cashier, the accountant, and the auditor. AcaFund is those things instead.</p>
+
+    <p>We are not building another way for students to send money. We are building the infrastructure that makes collective student money trustworthy for the first time.</p>
+  </section>
+
+</div>
+
+<!-- CLOSING -->
+<div class="closing">
+  <h2 class="closing-title">Every naira<br><em>accounted for</em>.</h2>
+  <p>AcaFund — the financial operating system for student communities. Collect together. Spend transparently. Know where every naira goes.</p>
+</div>
+
+</body>
+</html>

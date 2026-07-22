@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background: AcaFund primary green -->
+  <rect width="32" height="32" fill="#006e27"/>
+  <!-- Inner border (neobrutalist) -->
+  <rect x="1.5" y="1.5" width="29" height="29" fill="none" stroke="#000" stroke-width="1.5"/>
+  <!-- Bold "A" lettermark in white -->
+  <text
+    x="16"
+    y="24"
+    text-anchor="middle"
+    font-family="Arial Black, Arial, sans-serif"
+    font-weight="900"
+    font-size="22"
+    fill="#ffffff"
+    letter-spacing="-1"
+  >A</text>
+</svg>
