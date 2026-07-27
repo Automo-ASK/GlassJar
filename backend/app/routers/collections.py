@@ -9,6 +9,7 @@ from app.schemas.collections import (
     CollectionDashboardOut,
     CollectionDetailOut,
     CollectionOut,
+    CollectionResponsesOut,
     EntryOut,
 )
 from app.schemas.payments import ManualMarkIn, NoteIn
@@ -70,6 +71,20 @@ def close_collection(
     collection, membership = context
     assert_role(membership, [MemberRole.ADMIN])
     return collections_service.close_collection(db, membership, collection)
+
+
+@router.get(
+    "/collections/{collection_id}/responses", response_model=CollectionResponsesOut
+)
+def collection_responses(
+    context=Depends(get_collection_context), db: Session = Depends(get_db)
+):
+    collection, membership = context
+    assert_role(membership, MANAGERS)
+    return CollectionResponsesOut(
+        custom_fields=collection.custom_fields or [],
+        responses=collections_service.list_anonymous_payments(db, collection),
+    )
 
 
 @router.post("/collections/{collection_id}/entries/sync")

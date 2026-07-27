@@ -13,6 +13,8 @@ from app.models import (
     CollectionStatus,
     EntryStatus,
     Member,
+    Payment,
+    PaymentStatus,
 )
 from app.schemas.collections import (
     CollectionCreateIn,
@@ -20,9 +22,11 @@ from app.schemas.collections import (
     CollectionDetailOut,
     CollectionOut,
     EntryOut,
+    FormResponseOut,
 )
 from app.schemas.reports import ActiveCollectionSummaryOut
 from app.services import audit
+from app.services import payments as payments_service
 
 ZERO = Decimal("0.00")
 
@@ -69,6 +73,9 @@ def create_collection(
         target_amount=target,
         deadline=data.deadline,
         budget_allocation=data.budget_allocation,
+        custom_fields=(
+            [f.model_dump() for f in data.custom_fields] if data.custom_fields else None
+        ),
         status=CollectionStatus.ACTIVE,
         share_token=_generate_share_token(db),
         created_by=actor.user_id,
@@ -160,32 +167,45 @@ def active_collection_summaries(
     if not active:
         return []
 
+    collection_ids = [c.id for c in active]
+
     rows = (
         db.query(
             CollectionEntry.collection_id,
             CollectionEntry.status,
             func.count(CollectionEntry.id),
-            func.coalesce(func.sum(CollectionEntry.amount_due), 0),
         )
-        .filter(CollectionEntry.collection_id.in_([c.id for c in active]))
+        .filter(CollectionEntry.collection_id.in_(collection_ids))
         .group_by(CollectionEntry.collection_id, CollectionEntry.status)
         .all()
     )
-    rollups: dict[int, dict[EntryStatus, tuple[int, Decimal]]] = defaultdict(dict)
-    for collection_id, status, n, total in rows:
-        rollups[collection_id][status] = (n, to_money(total))
+    counts: dict[int, dict[EntryStatus, int]] = defaultdict(dict)
+    for collection_id, status, n in rows:
+        counts[collection_id][status] = n
+
+    # Amount collected is sourced from Payment directly (not the entry
+    # rollup) since payments no longer have to trace back to a roster entry.
+    collected_rows = (
+        db.query(Payment.collection_id, func.coalesce(func.sum(Payment.amount), 0))
+        .filter(
+            Payment.collection_id.in_(collection_ids),
+            Payment.status == PaymentStatus.PAID,
+        )
+        .group_by(Payment.collection_id)
+        .all()
+    )
+    collected_by_id = {cid: to_money(total) for cid, total in collected_rows}
 
     summaries = []
     for collection in active:
-        agg = rollups.get(collection.id, {})
-        paid_n, paid_sum = agg.get(EntryStatus.PAID, (0, ZERO))
-        pending_n, _ = agg.get(EntryStatus.PENDING, (0, ZERO))
+        paid_n = counts.get(collection.id, {}).get(EntryStatus.PAID, 0)
+        pending_n = counts.get(collection.id, {}).get(EntryStatus.PENDING, 0)
         summaries.append(
             ActiveCollectionSummaryOut(
                 id=collection.id,
                 title=collection.title,
                 target_amount=collection.target_amount,
-                amount_collected=paid_sum,
+                amount_collected=collected_by_id.get(collection.id, ZERO),
                 paid_count=paid_n,
                 pending_count=pending_n,
             )
@@ -195,9 +215,10 @@ def active_collection_summaries(
 
 def dashboard(db: Session, collection: Collection) -> CollectionDashboardOut:
     agg = entry_rollup(db, collection.id)
-    paid_n, collected = agg.get(EntryStatus.PAID, (0, ZERO))
+    paid_n, _ = agg.get(EntryStatus.PAID, (0, ZERO))
     pending_n, outstanding = agg.get(EntryStatus.PENDING, (0, ZERO))
     waived_n, _ = agg.get(EntryStatus.WAIVED, (0, ZERO))
+    collected = payments_service.total_collected(db, collection.id)
 
     percent = 0.0
     if collection.target_amount and collection.target_amount > 0:
@@ -212,6 +233,35 @@ def dashboard(db: Session, collection: Collection) -> CollectionDashboardOut:
         amount_outstanding=outstanding,
         percent_target_reached=percent,
     )
+
+
+def list_anonymous_payments(db: Session, collection: Collection) -> list[FormResponseOut]:
+    """Every paid-and-verified payment on this collection that isn't tied to
+    a roster entry (the public share link no longer matches a name) —
+    surfaced alongside the roster in the admin's member list, with whatever
+    the payer filled in on the post-payment form (if any)."""
+    rows = (
+        db.query(Payment)
+        .filter(
+            Payment.collection_id == collection.id,
+            Payment.entry_id.is_(None),
+            Payment.status == PaymentStatus.PAID,
+        )
+        .order_by(Payment.paid_at)
+        .all()
+    )
+    return [
+        FormResponseOut(
+            payment_id=payment.id,
+            entry_id=None,
+            display_name="Guest",
+            amount=payment.amount,
+            paid_at=payment.paid_at,
+            submitted_at=payment.form_submitted_at,
+            values=payment.form_responses or {},
+        )
+        for payment in rows
+    ]
 
 
 def close_collection(db: Session, actor: Member, collection: Collection) -> Collection:

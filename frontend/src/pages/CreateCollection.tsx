@@ -4,8 +4,35 @@ import { Plus, Trash2 } from 'lucide-react'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import { createCollection } from '../lib/api'
+import type { CustomFieldDef, CustomFieldType } from '../lib/types'
 
 interface BudgetLine { category: string; percentage: string }
+
+interface CustomFieldRow {
+  label: string
+  type: CustomFieldType
+  required: boolean
+  options: string
+}
+
+const FIELD_TYPES: { value: CustomFieldType; label: string }[] = [
+  { value: 'text', label: 'Text' },
+  { value: 'number', label: 'Number' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'email', label: 'Email' },
+  { value: 'select', label: 'Dropdown' },
+  { value: 'checkbox', label: 'Checkbox' },
+]
+
+function slugify(label: string, taken: Set<string>): string {
+  let base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  if (!base) base = 'field'
+  let key = base
+  let i = 2
+  while (taken.has(key)) key = `${base}_${i++}`
+  taken.add(key)
+  return key
+}
 
 export default function CreateCollection() {
   const { id } = useParams<{ id: string }>()
@@ -20,6 +47,10 @@ export default function CreateCollection() {
     { category: '', percentage: '' },
   ])
   const [useBudget, setUseBudget] = useState(false)
+  const [useCustomFields, setUseCustomFields] = useState(false)
+  const [customFields, setCustomFields] = useState<CustomFieldRow[]>([
+    { label: '', type: 'text', required: false, options: '' },
+  ])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -31,6 +62,12 @@ export default function CreateCollection() {
   const updateLine = (i: number, field: keyof BudgetLine, value: string) =>
     setBudgetLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)))
 
+  const addField = () =>
+    setCustomFields((prev) => [...prev, { label: '', type: 'text', required: false, options: '' }])
+  const removeField = (i: number) => setCustomFields((prev) => prev.filter((_, idx) => idx !== i))
+  const updateField = <K extends keyof CustomFieldRow>(i: number, field: K, value: CustomFieldRow[K]) =>
+    setCustomFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [field]: value } : f)))
+
   const validate = () => {
     const e: Record<string, string> = {}
     if (!title.trim()) e.title = 'Title is required'
@@ -41,6 +78,12 @@ export default function CreateCollection() {
         e.budget = `Budget percentages must total 100% (currently ${totalPct.toFixed(1)}%)`
       if (budgetLines.some((l) => !l.category.trim()))
         e.budget = e.budget ?? 'All budget categories must have a name'
+    }
+    if (useCustomFields) {
+      if (customFields.some((f) => !f.label.trim()))
+        e.customFields = 'Every field needs a label'
+      else if (customFields.some((f) => f.type === 'select' && !f.options.trim()))
+        e.customFields = 'Dropdown fields need at least one option'
     }
     return e
   }
@@ -56,12 +99,26 @@ export default function CreateCollection() {
       const budget_allocation = useBudget
         ? Object.fromEntries(budgetLines.map((l) => [l.category.trim(), parseFloat(l.percentage)]))
         : undefined
+      let custom_fields: CustomFieldDef[] | undefined
+      if (useCustomFields) {
+        const taken = new Set<string>()
+        custom_fields = customFields.map((f) => ({
+          key: slugify(f.label, taken),
+          label: f.label.trim(),
+          type: f.type,
+          required: f.required,
+          options: f.type === 'select'
+            ? f.options.split(',').map((o) => o.trim()).filter(Boolean)
+            : undefined,
+        }))
+      }
       const col = await createCollection(communityId, {
         title: title.trim(),
         description: description.trim() || undefined,
         amount_per_member: parseFloat(amountPerMember),
         deadline: deadline || undefined,
         budget_allocation,
+        custom_fields,
       })
       navigate(`/collections/${col.id}`)
     } catch (err: unknown) {
@@ -151,6 +208,71 @@ export default function CreateCollection() {
                 </div>
                 {fieldErrors.budget && (
                   <p className="text-[12px] text-error font-bold">{fieldErrors.budget}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Post-payment form fields */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <input type="checkbox" checked={useCustomFields} onChange={(e) => setUseCustomFields(e.target.checked)}
+                className="w-4 h-4 border-2 border-black accent-primary" />
+              <span className="text-[13px] font-bold uppercase tracking-[0.06em]">Collect Extra Info After Payment</span>
+            </label>
+            <p className="text-[12px] text-on-surface-variant mb-3 -mt-2">
+              Ask payers to fill a short form right after they pay (e.g. phone number, T-shirt size).
+            </p>
+
+            {useCustomFields && (
+              <div className="border-2 border-black p-4 bg-surface-container-low flex flex-col gap-3">
+                {customFields.map((field, i) => (
+                  <div key={i} className="border border-black/20 bg-white p-3 flex flex-col gap-2">
+                    <div className="flex gap-2 items-start">
+                      <input
+                        placeholder="Field label (e.g. Phone Number)"
+                        value={field.label}
+                        onChange={(e) => updateField(i, 'label', e.target.value)}
+                        className="flex-1 border-2 border-black bg-white px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <select
+                        value={field.type}
+                        onChange={(e) => updateField(i, 'type', e.target.value as CustomFieldType)}
+                        className="border-2 border-black bg-white px-2 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        {FIELD_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                      {customFields.length > 1 && (
+                        <button type="button" onClick={() => removeField(i)}
+                          className="p-2 border-2 border-black hover:bg-error-container transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {field.type === 'select' && (
+                      <input
+                        placeholder="Options, comma separated (e.g. S, M, L, XL)"
+                        value={field.options}
+                        onChange={(e) => updateField(i, 'options', e.target.value)}
+                        className="w-full border-2 border-black bg-white px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={field.required}
+                        onChange={(e) => updateField(i, 'required', e.target.checked)}
+                        className="w-3.5 h-3.5 border-2 border-black accent-primary" />
+                      <span className="text-[12px] font-bold uppercase tracking-widest text-on-surface-variant">Required</span>
+                    </label>
+                  </div>
+                ))}
+                <button type="button" onClick={addField}
+                  className="flex items-center gap-1 text-[12px] font-bold uppercase tracking-widest hover:text-primary transition-colors w-fit">
+                  <Plus size={13} /> Add Field
+                </button>
+                {fieldErrors.customFields && (
+                  <p className="text-[12px] text-error font-bold">{fieldErrors.customFields}</p>
                 )}
               </div>
             )}

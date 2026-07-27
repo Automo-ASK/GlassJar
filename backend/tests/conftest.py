@@ -41,15 +41,40 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def monnify_mock():
+@pytest.fixture(autouse=True)
+def _monnify_defaults():
+    """create_community fires a reserved-account call automatically now, so
+    every test that creates a community (almost all of them) needs Monnify's
+    login + reserved-account endpoints mocked, not just tests that opt into
+    `monnify_mock`. Calling `.mock(...)` again on the same route (as
+    `monnify_mock` users may do to override the reserved-account response)
+    updates this same route rather than creating a conflicting one."""
     with respx.mock(assert_all_called=False) as mock:
         mock.post(f"{MONNIFY}/api/v1/auth/login").mock(
             return_value=Response(
                 200, json={"responseBody": {"accessToken": "test-token"}}
             )
         )
+        mock.post(f"{MONNIFY}/api/v2/bank-transfer/reserved-accounts").mock(
+            return_value=Response(
+                200,
+                json={
+                    "responseBody": {
+                        "accounts": [
+                            {"accountNumber": "0000000000", "bankName": "Test Bank"}
+                        ],
+                        "accountName": "Test Community",
+                        "status": "ACTIVE",
+                    }
+                },
+            )
+        )
         yield mock
+
+
+@pytest.fixture
+def monnify_mock(_monnify_defaults):
+    return _monnify_defaults
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

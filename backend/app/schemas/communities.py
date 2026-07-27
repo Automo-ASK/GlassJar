@@ -27,10 +27,6 @@ class CommunityOut(ORMModel):
     reserved_account: Optional[ReservedAccountOut] = None
 
 
-class ReservedAccountSetupIn(BaseModel):
-    bvn: str = Field(min_length=11, max_length=11, pattern=r"^\d{11}$")
-
-
 class JoinIn(BaseModel):
     invite_code: str
     claim_member_id: Optional[int] = None

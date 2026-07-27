@@ -19,6 +19,7 @@ from app.routers.auth import router as auth_router
 from app.routers.collections import router as collections_router
 from app.routers.communities import router as communities_router
 from app.routers.expenses import router as expenses_router
+from app.routers.meta import router as meta_router
 from app.routers.payments import router as payments_router
 from app.routers.public import router as public_router
 from app.routers.reports import router as reports_router
@@ -81,6 +82,7 @@ app.include_router(payments_router)
 app.include_router(public_router)
 app.include_router(webhooks_router)
 app.include_router(expenses_router)
+app.include_router(meta_router)
 app.include_router(reports_router)
 app.include_router(assistant_router)
 

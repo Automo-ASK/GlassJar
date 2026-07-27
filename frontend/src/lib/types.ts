@@ -1,9 +1,19 @@
-export type MemberRole = 'admin' | 'treasurer' | 'auditor' | 'member'
+export type CustomFieldType = 'text' | 'number' | 'phone' | 'email' | 'select' | 'checkbox'
+
+export interface CustomFieldDef {
+  key: string
+  label: string
+  type: CustomFieldType
+  required: boolean
+  options?: string[] | null
+}
+
+export type MemberRole = 'admin' | 'treasurer' | 'member'
 export type CollectionStatus = 'draft' | 'active' | 'closed'
 export type MemberPaymentStatus = 'pending' | 'paid' | 'waived'
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'reversed'
 export type ManualChannel = 'manual_cash' | 'manual_transfer'
-export type ExpenseStatus = 'pending' | 'approved' | 'rejected' | 'paid_out'
+export type ExpenseStatus = 'pending' | 'awaiting_otp' | 'paid_out' | 'failed'
 export type LedgerEntryType = 'credit' | 'debit'
 
 export interface User {
@@ -66,6 +76,7 @@ export interface Collection {
   target_amount: number | null
   deadline: string | null
   budget_allocation: Record<string, number> | null
+  custom_fields: CustomFieldDef[] | null
   status: CollectionStatus
   share_token: string
   created_by: number
@@ -85,16 +96,6 @@ export interface CollectionMemberEntry {
 
 export interface CollectionDetail extends Collection {
   entries: CollectionMemberEntry[]
-}
-
-export interface CollectionDashboard {
-  total_members: number
-  paid_count: number
-  pending_count: number
-  waived_count: number
-  amount_collected: number
-  amount_outstanding: number
-  percent_target_reached: number
 }
 
 export interface ActiveCollectionSummary {
@@ -133,16 +134,27 @@ export interface Expense {
   status: ExpenseStatus
   receipt_url: string | null
   requested_by: number
-  approved_by: number | null
-  decision_note: string | null
   created_at: string
-  decided_at: string | null
   destination_bank_name: string | null
+  destination_bank_code: string | null
   destination_account_number: string | null
   destination_account_name: string | null
   payout_reference: string | null
+  payout_error: string | null
+  manual_payout: boolean
   paid_out_at: string | null
   paid_out_by: number | null
+}
+
+export interface Bank {
+  code: string
+  name: string
+}
+
+export interface AccountLookup {
+  account_number: string
+  account_name: string
+  bank_code: string
 }
 
 export interface LedgerResponse {
@@ -176,21 +188,17 @@ export interface TransparencyReport {
 
 // ── Public (guest) types ──────────────────────────────────────────────────────
 
-export interface PublicEntry {
-  id: number
-  display_name: string
-  status: MemberPaymentStatus
-}
-
 export interface PublicCollection {
   id: number
   title: string
   description: string | null
   community_name: string
   amount_per_member: number
+  target_amount: number | null
+  amount_collected: number
   deadline: string | null
   status: CollectionStatus
-  entries: PublicEntry[]
+  custom_fields: CustomFieldDef[] | null
 }
 
 export interface PublicPayment {
@@ -198,6 +206,23 @@ export interface PublicPayment {
   status: PaymentStatus
   amount: number
   paid_at: string | null
+  custom_fields: CustomFieldDef[] | null
+  form_submitted: boolean
+}
+
+export interface FormResponse {
+  payment_id: number
+  entry_id: number | null
+  display_name: string
+  amount: number
+  paid_at: string | null
+  submitted_at: string | null
+  values: Record<string, string | boolean>
+}
+
+export interface CollectionResponses {
+  custom_fields: CustomFieldDef[]
+  responses: FormResponse[]
 }
 
 export interface ApiError {

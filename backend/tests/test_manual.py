@@ -105,10 +105,22 @@ def test_revert_manual_payment_writes_reversing_debit(client):
 def test_revert_gateway_payment_blocked(client, monnify_mock):
     rep, community, collection, ada = setup(client)
 
+    # The public share link no longer produces entry-linked payments (anyone
+    # can pay, unmatched to a roster entry) — a gateway-verified payment
+    # against a specific entry now only comes from a member paying their own
+    # known dues in-app, so claim Ada's roster entry and pay as her.
+    ada_user = register(client, "ada@example.com", "Ada Obi")
+    client.post(
+        "/communities/join",
+        json={"invite_code": community["invite_code"], "claim_member_id": ada["member_id"]},
+        headers=ada_user,
+    )
+
     mock_init(monnify_mock)
     pay = client.post(
-        f"/public/collections/{collection['share_token']}/entries/{ada['id']}/pay",
+        f"/collections/{collection['id']}/pay",
         json={"redirect_url": "http://localhost:3000/payment-return"},
+        headers=ada_user,
     ).json()
     mock_verify(monnify_mock)
     post_webhook(

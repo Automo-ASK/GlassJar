@@ -3,6 +3,8 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
+    JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -44,8 +46,12 @@ class Expense(Base):
     decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     destination_bank_name: Mapped[Optional[str]] = mapped_column(String(128))
+    destination_bank_code: Mapped[Optional[str]] = mapped_column(String(16))
     destination_account_number: Mapped[Optional[str]] = mapped_column(String(32))
     destination_account_name: Mapped[Optional[str]] = mapped_column(String(255))
     payout_reference: Mapped[Optional[str]] = mapped_column(String(128))
+    payout_error: Mapped[Optional[str]] = mapped_column(Text)
+    raw_payout_payload: Mapped[Optional[dict]] = mapped_column(JSON)
+    manual_payout: Mapped[bool] = mapped_column(Boolean, default=False)
     paid_out_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     paid_out_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))

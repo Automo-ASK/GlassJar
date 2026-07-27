@@ -13,10 +13,10 @@ import {
 import type { CommunityMember, MemberRole } from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
 
-const ROLES: MemberRole[] = ['admin', 'treasurer', 'auditor', 'member']
+const ROLES: MemberRole[] = ['admin', 'treasurer', 'member']
 
 const roleBadgeColor = (r: MemberRole) =>
-  r === 'admin' ? 'green' : r === 'treasurer' ? 'blue' : r === 'auditor' ? 'yellow' : 'gray'
+  r === 'admin' ? 'green' : r === 'treasurer' ? 'blue' : 'gray'
 
 export default function Members() {
   const { id } = useParams<{ id: string }>()

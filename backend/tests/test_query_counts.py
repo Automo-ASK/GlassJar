@@ -50,9 +50,11 @@ def test_community_dashboard_query_count_is_constant(client):
         resp = client.get(f"/communities/{community['id']}/dashboard", headers=rep)
     assert resp.status_code == 200
     assert len(resp.json()["active_collections"]) == 8
-    # auth user + membership + balance + active collections + one grouped
-    # rollup + pending-expense count + recent ledger (+ total) — fixed cost.
-    assert counter["n"] <= 9, f"expected constant queries, got {counter['n']}"
+    # auth user + membership + balance + active collections + entry-status
+    # rollup + payment-amount rollup (amount_collected no longer traces
+    # through CollectionEntry, so it's a separate grouped aggregate) +
+    # pending-expense count + recent ledger (+ total) — fixed cost.
+    assert counter["n"] <= 10, f"expected constant queries, got {counter['n']}"
 
 
 def test_collection_dashboard_query_count_is_constant(client):
@@ -60,7 +62,9 @@ def test_collection_dashboard_query_count_is_constant(client):
     with count_queries() as counter:
         resp = client.get(f"/collections/{collection['id']}/dashboard", headers=rep)
     assert resp.status_code == 200
-    assert counter["n"] <= 6, f"expected constant queries, got {counter['n']}"
+    # +1 over the old fixed cost: amount_collected is now its own Payment
+    # aggregate query rather than reusing the entry rollup's sum.
+    assert counter["n"] <= 7, f"expected constant queries, got {counter['n']}"
 
 
 def test_transparency_report_query_count_is_constant(client):
@@ -68,4 +72,5 @@ def test_transparency_report_query_count_is_constant(client):
     with count_queries() as counter:
         resp = client.get(f"/collections/{collection['id']}/transparency")
     assert resp.status_code == 200
-    assert counter["n"] <= 6, f"expected constant queries, got {counter['n']}"
+    # +1 over the old fixed cost, same reason as the collection dashboard.
+    assert counter["n"] <= 7, f"expected constant queries, got {counter['n']}"

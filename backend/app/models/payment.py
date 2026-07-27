@@ -31,8 +31,10 @@ class Payment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id"), index=True)
-    entry_id: Mapped[int] = mapped_column(ForeignKey("collection_entries.id"), index=True)
-    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
+    entry_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("collection_entries.id"), index=True
+    )
+    member_id: Mapped[Optional[int]] = mapped_column(ForeignKey("members.id"), index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     channel: Mapped[PaymentChannel] = mapped_column(
         db_enum(PaymentChannel), default=PaymentChannel.CHECKOUT
@@ -45,13 +47,15 @@ class Payment(Base):
     checkout_url: Mapped[Optional[str]] = mapped_column(Text)
     payer_email: Mapped[Optional[str]] = mapped_column(String(255))
     raw_verification_payload: Mapped[Optional[dict]] = mapped_column(JSON)
+    form_responses: Mapped[Optional[dict]] = mapped_column(JSON)
+    form_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     recorded_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    entry: Mapped["CollectionEntry"] = relationship()  # noqa: F821
+    entry: Mapped[Optional["CollectionEntry"]] = relationship()  # noqa: F821
 
 
 class WebhookEvent(Base):

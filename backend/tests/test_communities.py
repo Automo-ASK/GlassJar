@@ -160,7 +160,7 @@ def test_role_changes(client):
     # Unclaimed members cannot hold governance roles.
     resp = client.patch(
         f"/communities/{community['id']}/members/{unclaimed['id']}/role",
-        json={"role": "auditor"},
+        json={"role": "treasurer"},
         headers=rep,
     )
     assert resp.status_code == 400

@@ -20,6 +20,12 @@ async def monnify_webhook(request: Request, db: Session = Depends(get_db)):
     # Monnify's sandbox omits the signature header; validate when present.
     signature = request.headers.get("monnify-signature")
     if signature and not MonnifyService.verify_webhook_signature(raw_body, signature):
+        computed = MonnifyService._compute_webhook_signature(raw_body)
+        logger.warning(
+            "monnify webhook signature mismatch: received=%s computed=%s "
+            "body_len=%d headers=%s",
+            signature, computed, len(raw_body), dict(request.headers),
+        )
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:

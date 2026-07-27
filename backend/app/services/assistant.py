@@ -39,7 +39,7 @@ def _build_context(db: Session, community_id: int) -> dict:
         db.query(Expense)
         .filter(
             Expense.community_id == community_id,
-            Expense.status == ExpenseStatus.PENDING,
+            Expense.status.in_([ExpenseStatus.PENDING, ExpenseStatus.AWAITING_OTP]),
         )
         .all()
     )

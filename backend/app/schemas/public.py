@@ -3,14 +3,9 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr
 
-from app.models.enums import CollectionStatus, EntryStatus, PaymentStatus
-from app.schemas.common import Money, ORMModel
-
-
-class PublicEntryOut(ORMModel):
-    id: int
-    display_name: str
-    status: EntryStatus
+from app.models.enums import CollectionStatus, PaymentStatus
+from app.schemas.collections import CustomFieldDef
+from app.schemas.common import Money
 
 
 class PublicCollectionOut(BaseModel):
@@ -19,9 +14,11 @@ class PublicCollectionOut(BaseModel):
     description: Optional[str] = None
     community_name: str
     amount_per_member: Money
+    target_amount: Optional[Money] = None
+    amount_collected: Money
     deadline: Optional[datetime] = None
     status: CollectionStatus
-    entries: list[PublicEntryOut]
+    custom_fields: Optional[list[CustomFieldDef]] = None
 
 
 class GuestPayIn(BaseModel):
@@ -34,3 +31,9 @@ class PublicPaymentOut(BaseModel):
     status: PaymentStatus
     amount: Money
     paid_at: Optional[datetime] = None
+    custom_fields: Optional[list[CustomFieldDef]] = None
+    form_submitted: bool = False
+
+
+class PaymentFormIn(BaseModel):
+    values: dict[str, str | bool]

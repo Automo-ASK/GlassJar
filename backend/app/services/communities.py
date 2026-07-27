@@ -36,10 +36,10 @@ def _generate_invite_code(db: Session) -> str:
 
 def to_community_out(community: Community) -> CommunityOut:
     reserved = None
-    if community.reserved_account_number:
+    if community.reserved_account_number or community.reserved_account_status:
         reserved = ReservedAccountOut(
             bank_name=community.reserved_bank_name or "",
-            account_number=community.reserved_account_number,
+            account_number=community.reserved_account_number or "",
             account_name=community.reserved_account_name or "",
             status=community.reserved_account_status or "pending",
         )
@@ -60,7 +60,7 @@ def get_community(db: Session, community_id: int) -> Community:
     return community
 
 
-def create_community(db: Session, user: User, data: CommunityCreateIn) -> Community:
+async def create_community(db: Session, user: User, data: CommunityCreateIn) -> Community:
     community = Community(
         name=data.name.strip(),
         description=data.description,
@@ -79,6 +79,20 @@ def create_community(db: Session, user: User, data: CommunityCreateIn) -> Commun
         added_by=user.id,
     )
     db.add(creator)
+    db.commit()
+    db.refresh(community)
+
+    try:
+        result = await monnify_service.create_reserved_account(
+            community_id=community.id, community_name=community.name
+        )
+        community.reserved_account_reference = result["account_reference"]
+        community.reserved_account_number = result["account_number"]
+        community.reserved_bank_name = result["bank_name"]
+        community.reserved_account_name = result["account_name"]
+        community.reserved_account_status = result["status"]
+    except MonnifyError:
+        community.reserved_account_status = "failed"
     db.commit()
     db.refresh(community)
     return community
@@ -313,7 +327,7 @@ def list_user_communities(db: Session, user: User) -> list[Community]:
 
 
 async def setup_reserved_account(
-    db: Session, actor: Member, community: Community, bvn: str, admin_name: str
+    db: Session, actor: Member, community: Community
 ) -> Community:
     if community.reserved_account_status == "active":
         raise ConflictError("Reserved account is already set up")
@@ -322,8 +336,6 @@ async def setup_reserved_account(
         result = await monnify_service.create_reserved_account(
             community_id=community.id,
             community_name=community.name,
-            admin_name=admin_name,
-            bvn=bvn,
         )
     except MonnifyError as e:
         community.reserved_account_status = "failed"

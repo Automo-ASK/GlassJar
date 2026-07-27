@@ -13,7 +13,6 @@ from app.schemas.communities import (
     MemberBulkAddIn,
     MemberOut,
     ReservedAccountOut,
-    ReservedAccountSetupIn,
     RoleChangeIn,
     UnclaimedMemberOut,
 )
@@ -25,12 +24,12 @@ ADMIN_ONLY = [MemberRole.ADMIN]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=CommunityOut)
-def create_community(
+async def create_community(
     body: CommunityCreateIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    community = communities_service.create_community(db, current_user, body)
+    community = await communities_service.create_community(db, current_user, body)
     return communities_service.to_community_out(community)
 
 
@@ -87,14 +86,12 @@ def get_reserved_account(
 )
 async def setup_reserved_account(
     community_id: int,
-    body: ReservedAccountSetupIn,
     membership: Member = Depends(require_community_role(ADMIN_ONLY)),
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     community = communities_service.get_community(db, community_id)
     community = await communities_service.setup_reserved_account(
-        db, membership, community, body.bvn, current_user.full_name
+        db, membership, community
     )
     return communities_service.to_community_out(community).reserved_account
 

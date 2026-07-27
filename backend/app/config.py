@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     monnify_secret_key: str = ""
     monnify_contract_code: str = ""
     monnify_base_url: str = "https://sandbox.monnify.com"
+    # The wallet/settlement account disbursements are debited from — from
+    # your Monnify dashboard. Required for expense payouts; not needed for
+    # collecting payments.
+    monnify_wallet_account_number: str = ""
 
     nvidia_api_key: str = ""
 

@@ -11,10 +11,10 @@ function fmt(n: number) { return `₦${n.toLocaleString('en-NG')}` }
 
 function expenseBadge(s: ExpenseStatus): { color: 'yellow' | 'blue' | 'green' | 'red'; label: string } {
   switch (s) {
-    case 'pending':  return { color: 'yellow', label: 'Pending Approval' }
-    case 'approved': return { color: 'blue',   label: 'Approved · Payout Pending' }
-    case 'paid_out': return { color: 'green',  label: 'Paid Out' }
-    case 'rejected': return { color: 'red',    label: 'Rejected' }
+    case 'pending':       return { color: 'yellow', label: 'Sending…' }
+    case 'awaiting_otp':  return { color: 'blue',   label: 'Needs Code' }
+    case 'paid_out':      return { color: 'green',  label: 'Paid Out' }
+    case 'failed':        return { color: 'red',    label: 'Failed' }
   }
 }
 

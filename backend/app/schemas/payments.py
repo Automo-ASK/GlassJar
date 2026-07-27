@@ -19,8 +19,8 @@ class PayInitOut(BaseModel):
 class PaymentOut(ORMModel):
     id: int
     collection_id: int
-    entry_id: int
-    member_id: int
+    entry_id: Optional[int] = None
+    member_id: Optional[int] = None
     amount: Money
     channel: PaymentChannel
     payment_reference: str

@@ -10,6 +10,7 @@ from app.schemas.reports import (
     TransparencyReportOut,
 )
 from app.services import ledger
+from app.services import payments as payments_service
 from app.services.collections import (
     active_collection_summaries,
     entry_rollup,
@@ -25,9 +26,10 @@ def transparency_report(db: Session, collection_id: int) -> TransparencyReportOu
     community = get_community(db, collection.community_id)
 
     agg = entry_rollup(db, collection.id)
-    paid_n, collected = agg.get(EntryStatus.PAID, (0, ZERO))
+    paid_n, _ = agg.get(EntryStatus.PAID, (0, ZERO))
     pending_n, _ = agg.get(EntryStatus.PENDING, (0, ZERO))
     waived_n, _ = agg.get(EntryStatus.WAIVED, (0, ZERO))
+    collected = payments_service.total_collected(db, collection.id)
 
     expenses = (
         db.query(Expense)
@@ -69,7 +71,7 @@ def community_dashboard(db: Session, community_id: int) -> CommunityDashboardOut
         db.query(Expense)
         .filter(
             Expense.community_id == community_id,
-            Expense.status == ExpenseStatus.PENDING,
+            Expense.status.in_([ExpenseStatus.PENDING, ExpenseStatus.AWAITING_OTP]),
         )
         .count()
     )

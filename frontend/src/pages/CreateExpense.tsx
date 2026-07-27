@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { CheckCircle } from 'lucide-react'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
-import { createExpense } from '../lib/api'
+import { createExpense, getBanks, resolveAccount } from '../lib/api'
+import type { Bank } from '../lib/types'
 
 const CATEGORIES = [
   'Food & Catering', 'Venue', 'Decoration', 'Printing', 'Transport',
@@ -17,23 +19,61 @@ export default function CreateExpense() {
   const [title, setTitle] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState(CATEGORIES[0])
-  const [destBankName, setDestBankName] = useState('')
-  const [destAccountNumber, setDestAccountNumber] = useState('')
-  const [destAccountName, setDestAccountName] = useState('')
   const [receiptUrl, setReceiptUrl] = useState('')
+
+  const [banks, setBanks] = useState<Bank[]>([])
+  const [banksError, setBanksError] = useState('')
+  const [bankCode, setBankCode] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [verifiedName, setVerifiedName] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    getBanks()
+      .then((b) => { setBanks(b); if (b.length) setBankCode(b[0].code) })
+      .catch((e: unknown) => setBanksError(e instanceof Error ? e.message : 'Failed to load bank list'))
+  }, [])
+
+  const invalidateVerification = () => {
+    if (verifiedName) setVerifiedName('')
+    setVerifyError('')
+  }
+
+  // Auto-verify once a 10-digit account number and a bank are both set —
+  // no button to click. Debounced so it doesn't fire on every keystroke, and
+  // guarded against stale responses if the input changes mid-request.
+  useEffect(() => {
+    const trimmed = accountNumber.trim()
+    if (!bankCode || !/^\d{10}$/.test(trimmed)) return
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setVerifying(true)
+      setVerifyError('')
+      try {
+        const result = await resolveAccount(trimmed, bankCode)
+        if (!cancelled) setVerifiedName(result.account_name)
+      } catch (e: unknown) {
+        if (!cancelled) setVerifyError(e instanceof Error ? e.message : 'Could not resolve this account')
+      } finally {
+        if (!cancelled) setVerifying(false)
+      }
+    }, 400)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [accountNumber, bankCode])
 
   const validate = () => {
     const e: Record<string, string> = {}
     if (!title.trim()) e.title = 'Title is required'
     const amt = parseFloat(amount)
     if (!amount || isNaN(amt) || amt <= 0) e.amount = 'Enter a valid amount'
-    if (!destBankName.trim()) e.destBankName = 'Bank name is required'
-    if (!destAccountNumber.trim()) e.destAccountNumber = 'Account number is required'
-    else if (!/^\d+$/.test(destAccountNumber.trim())) e.destAccountNumber = 'Account number must be digits only'
-    if (!destAccountName.trim()) e.destAccountName = 'Account name is required'
+    if (!verifiedName) e.account = 'Verify the destination account before paying'
     return e
   }
 
@@ -44,14 +84,16 @@ export default function CreateExpense() {
     setFieldErrors({}); setError('')
     setLoading(true)
     try {
+      const bank = banks.find((b) => b.code === bankCode)
       const exp = await createExpense(communityId, {
         title: title.trim(),
         amount: parseFloat(amount),
         category,
         receipt_url: receiptUrl.trim() || undefined,
-        destination_bank_name: destBankName.trim(),
-        destination_account_number: destAccountNumber.trim(),
-        destination_account_name: destAccountName.trim(),
+        destination_bank_name: bank?.name ?? '',
+        destination_bank_code: bankCode,
+        destination_account_number: accountNumber.trim(),
+        destination_account_name: verifiedName,
       })
       navigate(`/expenses/${exp.id}?community=${communityId}`)
     } catch (err: unknown) {
@@ -62,8 +104,10 @@ export default function CreateExpense() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="mb-8">
-        <h1 className="text-[28px] font-bold tracking-tight">New Expense Request</h1>
-        <p className="text-[14px] text-on-surface-variant mt-1">Treasurer only — an auditor will review and approve.</p>
+        <h1 className="text-[28px] font-bold tracking-tight">Pay for Something</h1>
+        <p className="text-[14px] text-on-surface-variant mt-1">
+          Admin or treasurer only — the transfer goes out as soon as you confirm.
+        </p>
       </div>
 
       {error && (
@@ -72,7 +116,7 @@ export default function CreateExpense() {
 
       <div className="border-4 border-black neo-shadow-lg bg-white p-8">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <Input id="title" label="Expense Title" placeholder="e.g. Venue booking deposit"
+          <Input id="title" label="What's this for" placeholder="e.g. Venue booking deposit"
             value={title} onChange={(e) => setTitle(e.target.value)} error={fieldErrors.title} />
 
           <Input id="amount" label="Amount (₦)" type="number" min="1" step="0.01" placeholder="e.g. 50000"
@@ -90,18 +134,42 @@ export default function CreateExpense() {
             </select>
           </div>
 
-          {/* Destination account — where the money will be sent */}
+          {/* Destination account — where the money goes, verified before paying */}
           <div className="border-2 border-black bg-surface-container p-4 flex flex-col gap-4">
-            <p className="text-[12px] font-bold uppercase tracking-[0.08em]">Where to Send the Money</p>
-            <Input id="destBankName" label="Bank Name" placeholder="e.g. First Bank"
-              value={destBankName} onChange={(e) => setDestBankName(e.target.value)}
-              error={fieldErrors.destBankName} />
-            <Input id="destAccountNumber" label="Account Number" placeholder="e.g. 3012345678"
-              value={destAccountNumber} onChange={(e) => setDestAccountNumber(e.target.value)}
-              error={fieldErrors.destAccountNumber} />
-            <Input id="destAccountName" label="Account Name" placeholder="e.g. Chidi Kamara"
-              value={destAccountName} onChange={(e) => setDestAccountName(e.target.value)}
-              error={fieldErrors.destAccountName} />
+            <p className="text-[12px] font-bold uppercase tracking-[0.08em]">Who Gets Paid</p>
+
+            {banksError && <p className="text-[12px] text-error font-bold">{banksError}</p>}
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="bank" className="text-[12px] font-bold uppercase tracking-[0.08em]">Bank</label>
+              <select
+                id="bank"
+                value={bankCode}
+                onChange={(e) => { setBankCode(e.target.value); invalidateVerification() }}
+                disabled={banks.length === 0}
+                className="border-2 border-black bg-white px-4 py-3 text-[15px] font-sans focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+              </select>
+            </div>
+
+            <Input id="accountNumber" label="Account Number" placeholder="10-digit account number"
+              value={accountNumber}
+              onChange={(e) => { setAccountNumber(e.target.value); invalidateVerification() }} />
+
+            {verifying && (
+              <p className="text-[12px] text-on-surface-variant">Looking up account name…</p>
+            )}
+            {verifyError && <p className="text-[12px] text-error font-bold">{verifyError}</p>}
+            {verifiedName && (
+              <div className="flex items-center gap-2 border-2 border-primary bg-primary-container/30 px-3 py-2">
+                <CheckCircle size={14} className="text-primary flex-shrink-0" />
+                <p className="text-[13px] font-bold">{verifiedName}</p>
+              </div>
+            )}
+            {fieldErrors.account && !verifiedName && (
+              <p className="text-[12px] text-error font-bold">{fieldErrors.account}</p>
+            )}
           </div>
 
           <Input id="receipt" label="Receipt URL (optional — will be stored in your drive)" type="url"
@@ -109,7 +177,7 @@ export default function CreateExpense() {
             value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} />
 
           <Button type="submit" loading={loading} fullWidth size="lg">
-            Submit Request
+            {amount ? `Pay ₦${Number(amount).toLocaleString('en-NG')}` : 'Pay Now'}
           </Button>
         </form>
       </div>

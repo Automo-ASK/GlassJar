@@ -1,11 +1,27 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import CollectionStatus, EntryStatus
 from app.schemas.common import Money, ORMModel
+
+CustomFieldType = Literal["text", "number", "phone", "email", "select", "checkbox"]
+
+
+class CustomFieldDef(BaseModel):
+    key: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=120)
+    type: CustomFieldType
+    required: bool = False
+    options: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def select_needs_options(self):
+        if self.type == "select" and not self.options:
+            raise ValueError("select fields must define at least one option")
+        return self
 
 
 class CollectionCreateIn(BaseModel):
@@ -15,12 +31,22 @@ class CollectionCreateIn(BaseModel):
     target_amount: Optional[Decimal] = Field(default=None, ge=0)
     deadline: Optional[datetime] = None
     budget_allocation: Optional[dict[str, float]] = None
+    custom_fields: Optional[list[CustomFieldDef]] = None
 
     @field_validator("budget_allocation")
     @classmethod
     def allocation_sums_to_100(cls, v):
         if v is not None and abs(sum(v.values()) - 100.0) > 0.01:
             raise ValueError("budget_allocation percentages must sum to 100")
+        return v
+
+    @field_validator("custom_fields")
+    @classmethod
+    def field_keys_unique(cls, v):
+        if v is not None:
+            keys = [f.key for f in v]
+            if len(keys) != len(set(keys)):
+                raise ValueError("custom_fields keys must be unique")
         return v
 
 
@@ -33,6 +59,7 @@ class CollectionOut(ORMModel):
     target_amount: Optional[Money] = None
     deadline: Optional[datetime] = None
     budget_allocation: Optional[dict[str, float]] = None
+    custom_fields: Optional[list[CustomFieldDef]] = None
     status: CollectionStatus
     share_token: str
     created_by: int
@@ -62,3 +89,18 @@ class CollectionDashboardOut(BaseModel):
     amount_collected: Money
     amount_outstanding: Money
     percent_target_reached: float
+
+
+class FormResponseOut(BaseModel):
+    payment_id: int
+    entry_id: Optional[int] = None
+    display_name: str
+    amount: Money
+    paid_at: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
+    values: dict
+
+
+class CollectionResponsesOut(BaseModel):
+    custom_fields: list[CustomFieldDef]
+    responses: list[FormResponseOut]

@@ -14,9 +14,10 @@ class ExpenseCreateIn(BaseModel):
     category: str = Field(min_length=1, max_length=64)
     collection_id: Optional[int] = None
     receipt_url: Optional[str] = None
-    destination_bank_name: Optional[str] = None
-    destination_account_number: Optional[str] = None
-    destination_account_name: Optional[str] = None
+    destination_bank_name: str = Field(min_length=1, max_length=128)
+    destination_bank_code: str = Field(min_length=1, max_length=16)
+    destination_account_number: str = Field(min_length=1, max_length=32)
+    destination_account_name: str = Field(min_length=1, max_length=255)
 
 
 class ExpenseOut(ORMModel):
@@ -29,24 +30,35 @@ class ExpenseOut(ORMModel):
     status: ExpenseStatus
     receipt_url: Optional[str] = None
     requested_by: int
-    approved_by: Optional[int] = None
-    decision_note: Optional[str] = None
     created_at: datetime
-    decided_at: Optional[datetime] = None
     destination_bank_name: Optional[str] = None
+    destination_bank_code: Optional[str] = None
     destination_account_number: Optional[str] = None
     destination_account_name: Optional[str] = None
     payout_reference: Optional[str] = None
+    payout_error: Optional[str] = None
+    manual_payout: bool = False
     paid_out_at: Optional[datetime] = None
     paid_out_by: Optional[int] = None
 
 
-class DecisionIn(BaseModel):
-    note: Optional[str] = None
+class OtpIn(BaseModel):
+    otp: str = Field(min_length=1, max_length=32)
 
 
-class MarkPaidOutIn(BaseModel):
+class ManualPayoutIn(BaseModel):
     payout_reference: str = Field(min_length=1, max_length=128)
+
+
+class BankOut(BaseModel):
+    code: str
+    name: str
+
+
+class AccountLookupOut(BaseModel):
+    account_number: str
+    account_name: str
+    bank_code: str
 
 
 class LedgerEntryOut(ORMModel):

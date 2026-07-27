@@ -1,9 +1,10 @@
 import type {
   TokenResponse, User, Community, CommunityMember, CommunityLookup, Collection,
-  CollectionDetail, CollectionDashboard, CollectionMemberEntry,
+  CollectionDetail, CollectionMemberEntry,
   CommunityDashboard, Expense, LedgerResponse, TransparencyReport,
   MemberRole, ManualChannel, ActiveCollectionSummary, ReservedAccount,
-  PublicCollection, PublicPayment,
+  PublicCollection, PublicPayment, CustomFieldDef, CollectionResponses,
+  Bank, AccountLookup,
 } from './types'
 
 const BASE_URL =
@@ -47,6 +48,9 @@ async function req<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    // Free-tier ngrok shows an HTML interstitial to browser-like requests
+    // unless this is set — harmless no-op against a non-ngrok backend.
+    'ngrok-skip-browser-warning': 'true',
     ...(options.headers as Record<string, string>),
   }
   if (!skipAuth) {
@@ -218,6 +222,7 @@ export async function createCollection(
     amount_per_member: number
     deadline?: string
     budget_allocation?: Record<string, number>
+    custom_fields?: CustomFieldDef[]
   },
 ): Promise<Collection> {
   return req<Collection>(`/communities/${communityId}/collections`, {
@@ -227,15 +232,6 @@ export async function createCollection(
 
 export async function getCollection(id: number): Promise<CollectionDetail> {
   return req<CollectionDetail>(`/collections/${id}`)
-}
-
-export async function getCollectionDashboard(id: number): Promise<CollectionDashboard> {
-  try {
-    return await req<CollectionDashboard>(`/collections/${id}/dashboard`)
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { total_members: 0, paid_count: 0, pending_count: 0, waived_count: 0, amount_collected: 0, amount_outstanding: 0, percent_target_reached: 0 }
-  }
 }
 
 export async function getMyPayment(collectionId: number): Promise<CollectionMemberEntry> {
@@ -248,6 +244,10 @@ export async function closeCollection(id: number): Promise<Collection> {
 
 export async function syncCollectionEntries(id: number): Promise<{ added: number }> {
   return req<{ added: number }>(`/collections/${id}/entries/sync`, { method: 'POST' })
+}
+
+export async function getCollectionResponses(id: number): Promise<CollectionResponses> {
+  return req<CollectionResponses>(`/collections/${id}/responses`)
 }
 
 // ── Entry actions (manual marking) ────────────────────────────────────────────
@@ -287,11 +287,11 @@ export async function getPublicCollection(shareToken: string): Promise<PublicCol
   return req<PublicCollection>(`/public/collections/${shareToken}`, {}, true)
 }
 
-export async function guestPay(
-  shareToken: string, entryId: number, payerEmail?: string,
+export async function publicPay(
+  shareToken: string, payerEmail?: string,
 ): Promise<{ checkout_url: string; payment_reference: string }> {
   const redirect_url = `${window.location.origin}/payment-return?pay_token=${shareToken}`
-  return req(`/public/collections/${shareToken}/entries/${entryId}/pay`, {
+  return req(`/public/collections/${shareToken}/pay`, {
     method: 'POST',
     body: JSON.stringify({ redirect_url, payer_email: payerEmail || null }),
   }, true)
@@ -303,6 +303,14 @@ export async function getPublicPayment(reference: string): Promise<PublicPayment
 
 export async function syncPublicPayment(reference: string): Promise<PublicPayment> {
   return req<PublicPayment>(`/public/payments/${reference}/sync`, { method: 'POST' }, true)
+}
+
+export async function submitPaymentForm(
+  reference: string, values: Record<string, string | boolean>,
+): Promise<PublicPayment> {
+  return req<PublicPayment>(`/public/payments/${reference}/form`, {
+    method: 'POST', body: JSON.stringify({ values }),
+  }, true)
 }
 
 export async function getTransparencyReport(collectionId: number): Promise<TransparencyReport> {
@@ -329,6 +337,7 @@ export async function createExpense(
     receipt_url?: string
     collection_id?: number
     destination_bank_name: string
+    destination_bank_code: string
     destination_account_number: string
     destination_account_name: string
   },
@@ -338,22 +347,35 @@ export async function createExpense(
   })
 }
 
-export async function approveExpense(expenseId: number, note?: string): Promise<Expense> {
-  return req<Expense>(`/expenses/${expenseId}/approve`, {
-    method: 'POST', body: JSON.stringify({ note: note ?? null }),
+export async function retryExpensePayout(expenseId: number): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/retry-payout`, { method: 'POST' })
+}
+
+export async function authorizeExpensePayout(expenseId: number, otp: string): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/authorize-payout`, {
+    method: 'POST', body: JSON.stringify({ otp }),
   })
 }
 
-export async function rejectExpense(expenseId: number, note: string): Promise<Expense> {
-  return req<Expense>(`/expenses/${expenseId}/reject`, {
-    method: 'POST', body: JSON.stringify({ note }),
-  })
+export async function resendExpenseOtp(expenseId: number): Promise<void> {
+  return req<void>(`/expenses/${expenseId}/resend-otp`, { method: 'POST' })
 }
 
-export async function markExpensePaidOut(expenseId: number, payout_reference: string): Promise<Expense> {
-  return req<Expense>(`/expenses/${expenseId}/mark-paid-out`, {
+export async function markExpensePaidManually(expenseId: number, payout_reference: string): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/mark-paid-manually`, {
     method: 'POST', body: JSON.stringify({ payout_reference }),
   })
+}
+
+// ── Bank lookups (for expense payouts) ────────────────────────────────────────
+
+export async function getBanks(): Promise<Bank[]> {
+  return req<Bank[]>('/meta/banks')
+}
+
+export async function resolveAccount(accountNumber: string, bankCode: string): Promise<AccountLookup> {
+  const params = new URLSearchParams({ account_number: accountNumber, bank_code: bankCode })
+  return req<AccountLookup>(`/meta/banks/resolve?${params.toString()}`)
 }
 
 // ── Reserved accounts ─────────────────────────────────────────────────────────
@@ -367,9 +389,9 @@ export async function getReservedAccount(communityId: number): Promise<ReservedA
   }
 }
 
-export async function setupReservedAccount(communityId: number, bvn: string): Promise<ReservedAccount> {
+export async function setupReservedAccount(communityId: number): Promise<ReservedAccount> {
   return req<ReservedAccount>(`/communities/${communityId}/reserved-account`, {
-    method: 'POST', body: JSON.stringify({ bvn }),
+    method: 'POST',
   })
 }
 

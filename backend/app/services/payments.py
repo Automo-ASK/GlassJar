@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import uuid4
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.core.errors import (
     InvalidInputError,
     NotFoundError,
 )
+from app.core.money import to_money
 from app.models import (
     Collection,
     CollectionEntry,
@@ -44,6 +46,36 @@ def get_payment_by_reference(db: Session, payment_reference: str) -> Payment:
     )
     if payment is None:
         raise NotFoundError("Payment not found")
+    return payment
+
+
+def submit_payment_form(
+    db: Session, payment: Payment, collection: Collection, values: dict
+) -> Payment:
+    """Validate and store a guest's answers to the collection's custom form,
+    submitted after checkout and before the confirmation screen."""
+    field_defs = collection.custom_fields or []
+    for field in field_defs:
+        key = field["key"]
+        value = values.get(key)
+        if field.get("required") and (value is None or value == ""):
+            raise InvalidInputError(f"'{field['label']}' is required")
+        if value is None or value == "":
+            continue
+        if field["type"] == "select" and value not in (field.get("options") or []):
+            raise InvalidInputError(f"'{field['label']}' has an invalid selection")
+        if field["type"] == "checkbox" and not isinstance(value, bool):
+            raise InvalidInputError(f"'{field['label']}' must be true or false")
+        if field["type"] == "number":
+            try:
+                float(value)
+            except (TypeError, ValueError):
+                raise InvalidInputError(f"'{field['label']}' must be a number")
+
+    payment.form_responses = values
+    payment.form_submitted_at = _now()
+    db.commit()
+    db.refresh(payment)
     return payment
 
 
@@ -143,27 +175,56 @@ async def member_pay(
     )
 
 
-async def guest_pay(
+async def public_pay(
     db: Session,
     collection: Collection,
-    entry_id: int,
     redirect_url: str,
     payer_email: Optional[str],
 ) -> Payment:
-    entry = db.get(CollectionEntry, entry_id)
-    if entry is None or entry.collection_id != collection.id:
-        raise NotFoundError("Entry not found in this collection")
-    member = db.get(Member, entry.member_id)
-    email = payer_email or member.email or f"guest-{entry.id}@acafund.app"
-    return await _initiate_checkout(
-        db,
-        collection=collection,
-        entry=entry,
-        customer_name=member.display_name,
-        customer_email=email,
-        redirect_url=redirect_url,
+    """Anyone-with-the-link checkout: no roster match, no CollectionEntry.
+    Amount is fixed at the collection's per-payer amount."""
+    if collection.status != CollectionStatus.ACTIVE:
+        raise InvalidInputError("Collection is not active")
+
+    email = payer_email or f"guest-{uuid4().hex[:8]}@acafund.app"
+    payment = Payment(
+        collection_id=collection.id,
+        amount=collection.amount_per_member,
+        channel=PaymentChannel.CHECKOUT,
+        payment_reference=f"acafund-{collection.id}-guest-{uuid4().hex[:8]}",
+        status=PaymentStatus.PENDING,
         payer_email=payer_email,
     )
+    db.add(payment)
+    db.flush()
+
+    try:
+        result = await monnify_service.init_transaction(
+            amount=collection.amount_per_member,
+            customer_name="Guest",
+            customer_email=email,
+            payment_reference=payment.payment_reference,
+            description=f"Payment for {collection.title}",
+            redirect_url=redirect_url,
+        )
+    except MonnifyError as e:
+        db.rollback()
+        raise GatewayError(f"Payment gateway error: {e.message}")
+
+    payment.checkout_url = result["checkoutUrl"]
+    payment.monnify_transaction_reference = result.get("transactionReference")
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def total_collected(db: Session, collection_id: int) -> Decimal:
+    total = (
+        db.query(func.coalesce(func.sum(Payment.amount), 0))
+        .filter(Payment.collection_id == collection_id, Payment.status == PaymentStatus.PAID)
+        .scalar()
+    )
+    return to_money(total)
 
 
 # ── Reconciliation ────────────────────────────────────────────────────────────
@@ -181,9 +242,10 @@ def _apply_paid(db: Session, payment_id: int, verification: dict) -> bool:
     locked.raw_verification_payload = verification
     locked.paid_at = _now()
 
-    entry = db.get(CollectionEntry, locked.entry_id)
-    entry.status = EntryStatus.PAID
-    entry.paid_at = _now()
+    if locked.entry_id is not None:
+        entry = db.get(CollectionEntry, locked.entry_id)
+        entry.status = EntryStatus.PAID
+        entry.paid_at = _now()
 
     collection = db.get(Collection, locked.collection_id)
     ledger.record_credit(

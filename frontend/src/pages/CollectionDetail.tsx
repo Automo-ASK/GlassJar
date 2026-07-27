@@ -9,13 +9,14 @@ import Badge from '../components/ui/Badge'
 import LoadingState from '../components/ui/LoadingState'
 import ErrorState from '../components/ui/ErrorState'
 import {
-  getCollection, getCollectionDashboard, getMyPayment,
-  initiatePayment, closeCollection, getMembers,
+  getCollection, getMyPayment,
+  initiatePayment, closeCollection, getMembers, getCollectionResponses,
   markEntryPaid, waiveEntry, revertEntry, syncCollectionEntries,
 } from '../lib/api'
 import type {
-  CollectionDetail as CollDetailType, CollectionDashboard,
+  CollectionDetail as CollDetailType,
   CollectionMemberEntry, CommunityMember, ManualChannel,
+  CollectionResponses,
 } from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -30,7 +31,7 @@ export default function CollectionDetail() {
   const navigate = useNavigate()
 
   const [collection, setCollection] = useState<CollDetailType | null>(null)
-  const [dashboard, setDashboard] = useState<CollectionDashboard | null>(null)
+  const [anonPayments, setAnonPayments] = useState<CollectionResponses | null>(null)
   const [myPayment, setMyPayment] = useState<CollectionMemberEntry | null>(null)
   const [communityMembers, setCommunityMembers] = useState<CommunityMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,12 +49,12 @@ export default function CollectionDetail() {
     setLoading(true); setError('')
     try {
       const col = await getCollection(collectionId)
-      const [dash, pay] = await Promise.all([
-        getCollectionDashboard(collectionId),
+      const [anon, pay] = await Promise.all([
+        getCollectionResponses(collectionId).catch(() => null),
         getMyPayment(collectionId).catch(() => null),
       ])
       setCollection(col)
-      setDashboard(dash)
+      setAnonPayments(anon)
       setMyPayment(pay)
       // fetch community members to determine role
       const mems = await getMembers(col.community_id).catch(() => [])
@@ -99,7 +100,6 @@ export default function CollectionDetail() {
     setCollection((prev) =>
       prev ? { ...prev, entries: prev.entries.map((e) => (e.id === updated.id ? updated : e)) } : prev,
     )
-    getCollectionDashboard(collectionId).then(setDashboard).catch(() => {})
   }
 
   const handleMarkPaid = async (entry: CollectionMemberEntry, channel: ManualChannel) => {
@@ -144,7 +144,6 @@ export default function CollectionDetail() {
   if (loading) return <LoadingState />
   if (error || !collection) return <ErrorState message={error} onRetry={load} />
 
-  const pct = dashboard?.percent_target_reached ?? 0
   const payLink = `${window.location.origin}/pay/${collection.share_token}`
 
   return (
@@ -186,7 +185,7 @@ export default function CollectionDetail() {
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Payment Link — share with your class</p>
             <p className="text-[13px] font-bold truncate">{payLink}</p>
             <p className="text-[11px] text-on-surface-variant mt-0.5">
-              Members open it, pick their name, and pay. No account needed.
+              Anyone with the link can pay directly — no account or sign-up needed.
             </p>
           </div>
           <Button variant="black" size="sm" onClick={() => copyLink('paylink', payLink)}>
@@ -220,35 +219,6 @@ export default function CollectionDetail() {
           <p className="text-[14px] font-bold text-primary">
             You've paid {fmt(myPayment.amount_due)} — thank you!
           </p>
-        </div>
-      )}
-
-      {/* Progress */}
-      {dashboard && (
-        <div className="border-2 border-black bg-white p-6 neo-shadow">
-          <div className="flex justify-between items-end mb-3">
-            <p className="text-[14px] font-bold uppercase tracking-[0.06em]">Collection Progress</p>
-            <p className="text-[22px] font-bold">{pct.toFixed(1)}%</p>
-          </div>
-          <div className="w-full bg-surface-container border-2 border-black h-5 mb-4">
-            <div
-              className="bg-primary h-full border-r-2 border-black transition-all duration-700"
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Collected', value: fmt(dashboard.amount_collected), color: 'text-primary' },
-              { label: 'Outstanding', value: fmt(dashboard.amount_outstanding), color: 'text-error' },
-              { label: 'Paid', value: `${dashboard.paid_count} members`, color: 'text-on-surface' },
-              { label: 'Pending', value: `${dashboard.pending_count} members`, color: 'text-on-surface' },
-            ].map(({ label, value, color }) => (
-              <div key={label}>
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant mb-0.5">{label}</p>
-                <p className={`text-[16px] font-bold ${color}`}>{value}</p>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -286,7 +256,10 @@ export default function CollectionDetail() {
                 <UserPlus size={12} /> Sync roster
               </button>
             )}
-            <span className="text-[12px] text-on-surface-variant">{collection.entries.length} enrolled</span>
+            <span className="text-[12px] text-on-surface-variant">
+              {collection.entries.length} enrolled
+              {anonPayments && anonPayments.responses.length > 0 && ` · ${anonPayments.responses.length} paid via link`}
+            </span>
           </div>
         </div>
         <div className="divide-y-2 divide-black">
@@ -363,6 +336,33 @@ export default function CollectionDetail() {
               </div>
             </div>
           ))}
+          {anonPayments?.responses.map((p) => {
+            const details = anonPayments.custom_fields
+              .map((f) => p.values[f.key])
+              .filter((v) => v !== undefined && v !== null && v !== '')
+              .join(' · ')
+            return (
+              <div key={p.payment_id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <CheckCircle size={16} className="text-primary flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold flex items-center gap-1 truncate">
+                      <User size={12} className="flex-shrink-0" /> {details || 'Guest'}
+                    </p>
+                    {p.paid_at && (
+                      <p className="text-[11px] text-on-surface-variant">
+                        {new Date(p.paid_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[13px] font-bold">{fmt(p.amount)}</p>
+                  <Badge color="green">paid via link</Badge>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 

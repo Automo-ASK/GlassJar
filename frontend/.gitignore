@@ -27,3 +27,5 @@ vite.config.d.ts
 *.njsproj
 *.sln
 *.sw?
+
+.env

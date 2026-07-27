@@ -179,31 +179,56 @@ def test_webhook_underpaid_not_reconciled(client, monnify_mock):
     assert get_balance(client, rep, community["id"]) == 0.0
 
 
-def test_reserved_account_direct_transfer_credits_ledger(client, monnify_mock):
-    rep = register(client)
-    community = create_community(client, rep)
-
+def _mock_reserved_account(monnify_mock, account_number="1234567890", bank_name="Wema Bank", status="ACTIVE"):
     monnify_mock.post(f"{MONNIFY}/api/v2/bank-transfer/reserved-accounts").mock(
         return_value=Response(
             200,
             json={
                 "responseBody": {
                     "accounts": [
-                        {"accountNumber": "1234567890", "bankName": "Wema Bank"}
+                        {"accountNumber": account_number, "bankName": bank_name}
                     ],
                     "accountName": "CSC 101",
-                    "status": "ACTIVE",
+                    "status": status,
                 }
             },
         )
     )
-    resp = client.post(
-        f"/communities/{community['id']}/reserved-account",
-        json={"bvn": "12345678901"},
-        headers=rep,
+
+
+def test_community_creation_auto_creates_reserved_account(client, monnify_mock):
+    _mock_reserved_account(monnify_mock)
+    rep = register(client)
+    community = create_community(client, rep)
+
+    assert community["reserved_account"]["status"] == "active"
+    assert community["reserved_account"]["account_number"] == "1234567890"
+
+
+def test_reserved_account_creation_failure_does_not_block_community(client, monnify_mock):
+    monnify_mock.post(f"{MONNIFY}/api/v2/bank-transfer/reserved-accounts").mock(
+        return_value=Response(500, json={"responseMessage": "nope"})
     )
+    rep = register(client)
+    community = create_community(client, rep)
+    assert community["reserved_account"]["status"] == "failed"
+
+    resp = client.get(f"/communities/{community['id']}/reserved-account", headers=rep)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "failed"
+
+    # Admin can retry once Monnify is reachable again.
+    _mock_reserved_account(monnify_mock)
+    resp = client.post(f"/communities/{community['id']}/reserved-account", headers=rep)
     assert resp.status_code == 201, resp.text
-    assert resp.json()["account_number"] == "1234567890"
+    assert resp.json()["status"] == "active"
+
+
+def test_reserved_account_direct_transfer_credits_ledger(client, monnify_mock):
+    _mock_reserved_account(monnify_mock)
+    rep = register(client)
+    community = create_community(client, rep)
+    assert community["reserved_account"]["account_number"] == "1234567890"
 
     resp = post_webhook(
         client,

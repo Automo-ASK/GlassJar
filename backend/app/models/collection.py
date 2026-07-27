@@ -32,6 +32,7 @@ class Collection(Base):
     target_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 2))
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     budget_allocation: Mapped[Optional[dict]] = mapped_column(JSON)
+    custom_fields: Mapped[Optional[list]] = mapped_column(JSON)
     status: Mapped[CollectionStatus] = mapped_column(
         db_enum(CollectionStatus), default=CollectionStatus.ACTIVE
     )

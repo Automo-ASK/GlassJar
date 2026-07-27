@@ -6,7 +6,6 @@ from sqlalchemy import Enum as SAEnum
 class MemberRole(str, enum.Enum):
     ADMIN = "admin"
     TREASURER = "treasurer"
-    AUDITOR = "auditor"
     MEMBER = "member"
 
 
@@ -37,9 +36,9 @@ class PaymentChannel(str, enum.Enum):
 
 class ExpenseStatus(str, enum.Enum):
     PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+    AWAITING_OTP = "awaiting_otp"
     PAID_OUT = "paid_out"
+    FAILED = "failed"
 
 
 class LedgerEntryType(str, enum.Enum):

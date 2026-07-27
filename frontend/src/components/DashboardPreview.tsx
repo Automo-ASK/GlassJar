@@ -39,7 +39,7 @@ const AUDIT_LOGS = [
 const MEMBERS = [
   { name: 'Adeola Okonkwo', role: 'Admin', status: 'paid', initials: 'AO' },
   { name: 'Chidi Kamara', role: 'Treasurer', status: 'paid', initials: 'CK' },
-  { name: 'Blessing Eze', role: 'Auditor', status: 'paid', initials: 'BE' },
+  { name: 'Blessing Eze', role: 'Member', status: 'paid', initials: 'BE' },
   { name: 'Tunde Adeyemi', role: 'Member', status: 'pending', initials: 'TA' },
   { name: 'Ngozi Anozie', role: 'Member', status: 'paid', initials: 'NA' },
   { name: 'Emeka Ibeji', role: 'Member', status: 'pending', initials: 'EI' },

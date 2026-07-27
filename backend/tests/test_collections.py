@@ -87,6 +87,64 @@ def test_dashboard_counts(client):
     assert dash["percent_target_reached"] == 33.3
 
 
+def test_create_collection_with_custom_fields(client):
+    rep = register(client)
+    community = create_community(client, rep)
+    resp = client.post(
+        f"/communities/{community['id']}/collections",
+        json={
+            "title": "Trip Deposit",
+            "amount_per_member": 5000,
+            "custom_fields": [
+                {"key": "phone", "label": "Phone Number", "type": "phone", "required": True},
+                {
+                    "key": "tshirt_size", "label": "T-Shirt Size", "type": "select",
+                    "required": True, "options": ["S", "M", "L"],
+                },
+            ],
+        },
+        headers=rep,
+    )
+    assert resp.status_code == 201, resp.text
+    fields = resp.json()["custom_fields"]
+    assert [f["key"] for f in fields] == ["phone", "tshirt_size"]
+
+
+def test_select_field_without_options_is_rejected(client):
+    rep = register(client)
+    community = create_community(client, rep)
+    resp = client.post(
+        f"/communities/{community['id']}/collections",
+        json={
+            "title": "Trip Deposit",
+            "amount_per_member": 5000,
+            "custom_fields": [
+                {"key": "size", "label": "Size", "type": "select", "required": True},
+            ],
+        },
+        headers=rep,
+    )
+    assert resp.status_code == 422
+
+
+def test_duplicate_custom_field_keys_rejected(client):
+    rep = register(client)
+    community = create_community(client, rep)
+    resp = client.post(
+        f"/communities/{community['id']}/collections",
+        json={
+            "title": "Trip Deposit",
+            "amount_per_member": 5000,
+            "custom_fields": [
+                {"key": "phone", "label": "Phone", "type": "phone"},
+                {"key": "phone", "label": "Phone Again", "type": "text"},
+            ],
+        },
+        headers=rep,
+    )
+    assert resp.status_code == 422
+
+
 def test_close_collection(client):
     rep = register(client)
     community = create_community(client, rep)
