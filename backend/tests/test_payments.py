@@ -1,238 +1,240 @@
-import pytest
-import respx
-import httpx
+import hashlib
+import json
 
-from app.models.ledger import LedgerEntry
-from app.models.payment import Payment
-from app.models.enums import PaymentStatus
-from app.services.monnify import monnify_service
+from httpx import Response
 
-MONNIFY_BASE = "https://sandbox.monnify.com"
+from app.database import SessionLocal
+from app.models import Payment
+from tests.conftest import (
+    MONNIFY,
+    create_collection,
+    create_community,
+    get_balance,
+    get_entries,
+    register,
+)
 
-
-# ── fixtures ──────────────────────────────────────────────────────────────────
-
-@pytest.fixture(autouse=True)
-def reset_monnify_token():
-    """Clear cached token before each test so mocks are always exercised."""
-    monnify_service._token = None
-    monnify_service._token_expiry = None
-    yield
+CHECKOUT_URL = "https://checkout.monnify.com/test"
 
 
-# ── shared helpers ────────────────────────────────────────────────────────────
-
-def _make_user(client, email, name="User"):
-    client.post("/auth/register", json={"email": email, "password": "pw", "full_name": name})
-    token = client.post("/auth/login", json={"email": email, "password": "pw"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    user_id = client.get("/auth/me", headers=headers).json()["id"]
-    return {"headers": headers, "id": user_id}
-
-
-def _make_community(client, headers, name="Test Comm"):
-    resp = client.post("/communities", json={"name": name, "description": ""}, headers=headers)
-    assert resp.status_code == 201
-    return resp.json()
+def mock_init(monnify_mock, tx_ref="MNFY|TX|1"):
+    monnify_mock.post(f"{MONNIFY}/api/v1/merchant/transactions/init-transaction").mock(
+        return_value=Response(
+            200,
+            json={
+                "responseBody": {
+                    "checkoutUrl": CHECKOUT_URL,
+                    "transactionReference": tx_ref,
+                }
+            },
+        )
+    )
 
 
-def _setup(client, label=""):
-    admin = _make_user(client, f"admin{label}@pay.com", "Admin")
-    comm = _make_community(client, admin["headers"], f"Comm{label}")
-    m1 = _make_user(client, f"m1{label}@pay.com", "M1")
-    client.post("/communities/join", json={"invite_code": comm["invite_code"]}, headers=m1["headers"])
-    return {"admin": admin, "m1": m1, "comm": comm}
+def mock_verify(monnify_mock, status="PAID", amount=1000):
+    monnify_mock.get(f"{MONNIFY}/api/v2/merchant/transactions/query").mock(
+        return_value=Response(
+            200,
+            json={"responseBody": {"paymentStatus": status, "amountPaid": amount}},
+        )
+    )
 
 
-def _create_collection(client, headers, community_id, amount=1000.0):
+def sign(raw: bytes) -> str:
+    return hashlib.sha512(b"test-monnify-secret" + raw).hexdigest()
+
+
+def post_webhook(client, payload, signature=None):
+    raw = json.dumps(payload).encode()
+    headers = {"Content-Type": "application/json"}
+    if signature is not None:
+        headers["monnify-signature"] = signature
+    return client.post("/webhooks/monnify", content=raw, headers=headers)
+
+
+def setup_paying_member(client, monnify_mock):
+    rep = register(client)
+    community = create_community(client, rep)
+    collection = create_collection(client, rep, community["id"], amount=1000)
+    mock_init(monnify_mock)
     resp = client.post(
-        f"/communities/{community_id}/collections",
-        json={"title": "Monthly Dues", "amount_per_member": amount},
-        headers=headers,
+        f"/collections/{collection['id']}/pay",
+        json={"redirect_url": "http://localhost:3000/payment-return"},
+        headers=rep,
+    )
+    assert resp.status_code == 201, resp.text
+    return rep, community, collection, resp.json()
+
+
+def test_member_pay_creates_checkout(client, monnify_mock):
+    _, _, _, pay = setup_paying_member(client, monnify_mock)
+    assert pay["checkout_url"] == CHECKOUT_URL
+    assert pay["payment_reference"].startswith("acafund-")
+
+
+def test_pay_reuses_inflight_checkout(client, monnify_mock):
+    rep, _, collection, first = setup_paying_member(client, monnify_mock)
+    resp = client.post(
+        f"/collections/{collection['id']}/pay",
+        json={"redirect_url": "http://localhost:3000/payment-return"},
+        headers=rep,
     )
     assert resp.status_code == 201
-    return resp.json()
+    assert resp.json()["payment_reference"] == first["payment_reference"]
 
 
-def _mock_login():
-    return respx.post(f"{MONNIFY_BASE}/api/v1/auth/login").mock(
-        return_value=httpx.Response(200, json={
-            "responseBody": {"accessToken": "test-token", "expiresIn": 3600}
-        })
+def test_webhook_reconciles_payment(client, monnify_mock):
+    rep, community, collection, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock)
+
+    resp = post_webhook(
+        client,
+        {
+            "transactionReference": "MNFY|TX|1",
+            "paymentReference": pay["payment_reference"],
+        },
     )
-
-
-def _mock_init(checkout_url="https://sandbox.monnify.com/checkout/test123", tx_ref="MNFY|TEST|123"):
-    return respx.post(f"{MONNIFY_BASE}/api/v1/merchant/transactions/init-transaction").mock(
-        return_value=httpx.Response(200, json={
-            "responseBody": {
-                "checkoutUrl": checkout_url,
-                "transactionReference": tx_ref,
-            }
-        })
-    )
-
-
-def _mock_verify(payment_status="PAID", amount_paid=1000.0):
-    return respx.get(f"{MONNIFY_BASE}/api/v2/merchant/transactions/query").mock(
-        return_value=httpx.Response(200, json={
-            "responseBody": {
-                "paymentStatus": payment_status,
-                "amountPaid": amount_paid,
-                "totalPayable": 1000.0,
-            }
-        })
-    )
-
-
-# ── tests ─────────────────────────────────────────────────────────────────────
-
-def test_init_pay_creates_pending_payment_and_returns_checkout_url(client, db_session):
-    s = _setup(client, "p1")
-    col = _create_collection(client, s["admin"]["headers"], s["comm"]["id"])
-
-    with respx.mock:
-        _mock_login()
-        _mock_init("https://sandbox.monnify.com/checkout/abc123")
-        resp = client.post(
-            f"/collections/{col['id']}/pay",
-            json={"redirect_url": "https://acafund.app/done"},
-            headers=s["m1"]["headers"],
-        )
-
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body["checkout_url"] == "https://sandbox.monnify.com/checkout/abc123"
-    assert "payment_reference" in body
-
-    payments = db_session.query(Payment).filter(Payment.collection_id == col["id"]).all()
-    assert len(payments) == 1
-    assert payments[0].status == PaymentStatus.PENDING
-    assert payments[0].user_id == s["m1"]["id"]
-
-
-def test_webhook_verify_returns_pending_does_not_mark_payment_paid(client, db_session):
-    s = _setup(client, "p2")
-    col = _create_collection(client, s["admin"]["headers"], s["comm"]["id"])
-
-    with respx.mock:
-        _mock_login()
-        _mock_init()
-        init_resp = client.post(
-            f"/collections/{col['id']}/pay",
-            json={"redirect_url": "https://acafund.app/done"},
-            headers=s["m1"]["headers"],
-        )
-    assert init_resp.status_code == 201
-    pay_ref = init_resp.json()["payment_reference"]
-
-    # Webhook fires, but verify returns PENDING — must not mark paid
-    with respx.mock:
-        _mock_login()
-        _mock_verify(payment_status="PENDING", amount_paid=0)
-        resp = client.post("/webhooks/monnify", json={"paymentReference": pay_ref})
-
     assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
 
-    payment = db_session.query(Payment).filter(Payment.payment_reference == pay_ref).first()
-    db_session.refresh(payment)
-    assert payment.status == PaymentStatus.PENDING
+    (entry,) = get_entries(client, rep, collection["id"])
+    assert entry["status"] == "paid"
+    assert entry["paid_at"] is not None
+    assert get_balance(client, rep, community["id"]) == 1000.0
+
+    me = client.get(f"/collections/{collection['id']}/payments/me", headers=rep)
+    assert me.json()["status"] == "paid"
 
 
-def test_webhook_duplicate_does_not_double_write_ledger(client, db_session):
-    s = _setup(client, "p3")
-    col = _create_collection(client, s["admin"]["headers"], s["comm"]["id"])
+def test_webhook_duplicate_delivery_is_ignored(client, monnify_mock):
+    rep, community, _, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock)
+    payload = {
+        "transactionReference": "MNFY|TX|1",
+        "paymentReference": pay["payment_reference"],
+    }
+    assert post_webhook(client, payload).json()["status"] == "ok"
+    assert post_webhook(client, payload).json()["status"] == "duplicate"
 
-    with respx.mock:
-        _mock_login()
-        _mock_init()
-        init_resp = client.post(
-            f"/collections/{col['id']}/pay",
-            json={"redirect_url": "https://acafund.app/done"},
-            headers=s["m1"]["headers"],
-        )
-    pay_ref = init_resp.json()["payment_reference"]
+    assert get_balance(client, rep, community["id"]) == 1000.0
+    ledger = client.get(f"/communities/{community['id']}/ledger", headers=rep).json()
+    assert ledger["total"] == 1
 
-    # First webhook — processes and marks PAID
-    with respx.mock:
-        _mock_login()
-        _mock_verify(payment_status="PAID", amount_paid=1000.0)
-        client.post("/webhooks/monnify", json={"paymentReference": pay_ref})
 
-    # Second webhook — idempotency: must not write another ledger entry
-    with respx.mock:
-        _mock_login()
-        _mock_verify(payment_status="PAID", amount_paid=1000.0)
-        client.post("/webhooks/monnify", json={"paymentReference": pay_ref})
-
-    payment = db_session.query(Payment).filter(Payment.payment_reference == pay_ref).first()
-    entries = (
-        db_session.query(LedgerEntry)
-        .filter(
-            LedgerEntry.reference_id == payment.id,
-            LedgerEntry.reference_type == "payment",
-        )
-        .all()
+def test_webhook_eventdata_wrapped_shape(client, monnify_mock):
+    rep, community, collection, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock)
+    resp = post_webhook(
+        client,
+        {
+            "eventType": "SUCCESSFUL_TRANSACTION",
+            "eventData": {
+                "transactionReference": "MNFY|TX|2",
+                "paymentReference": pay["payment_reference"],
+            },
+        },
     )
-    assert len(entries) == 1
+    assert resp.json()["status"] == "ok"
+    (entry,) = get_entries(client, rep, collection["id"])
+    assert entry["status"] == "paid"
 
 
-def test_webhook_amount_paid_less_than_amount_due_does_not_mark_paid(client, db_session):
-    s = _setup(client, "p4")
-    col = _create_collection(client, s["admin"]["headers"], s["comm"]["id"], amount=1000.0)
+def test_webhook_bad_signature_rejected(client, monnify_mock):
+    _, _, _, pay = setup_paying_member(client, monnify_mock)
+    resp = post_webhook(
+        client,
+        {"transactionReference": "MNFY|TX|1", "paymentReference": pay["payment_reference"]},
+        signature="deadbeef",
+    )
+    assert resp.status_code == 400
 
-    with respx.mock:
-        _mock_login()
-        _mock_init()
-        init_resp = client.post(
-            f"/collections/{col['id']}/pay",
-            json={"redirect_url": "https://acafund.app/done"},
-            headers=s["m1"]["headers"],
+
+def test_webhook_valid_signature_accepted(client, monnify_mock):
+    _, _, _, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock)
+    payload = {
+        "transactionReference": "MNFY|TX|1",
+        "paymentReference": pay["payment_reference"],
+    }
+    raw = json.dumps(payload).encode()
+    resp = client.post(
+        "/webhooks/monnify",
+        content=raw,
+        headers={"Content-Type": "application/json", "monnify-signature": sign(raw)},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+def test_webhook_underpaid_not_reconciled(client, monnify_mock):
+    rep, community, collection, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock, amount=500)
+    resp = post_webhook(
+        client,
+        {"transactionReference": "MNFY|TX|1", "paymentReference": pay["payment_reference"]},
+    )
+    assert resp.json()["status"] == "not_paid"
+    (entry,) = get_entries(client, rep, collection["id"])
+    assert entry["status"] == "pending"
+    assert get_balance(client, rep, community["id"]) == 0.0
+
+
+def test_reserved_account_direct_transfer_credits_ledger(client, monnify_mock):
+    rep = register(client)
+    community = create_community(client, rep)
+
+    monnify_mock.post(f"{MONNIFY}/api/v2/bank-transfer/reserved-accounts").mock(
+        return_value=Response(
+            200,
+            json={
+                "responseBody": {
+                    "accounts": [
+                        {"accountNumber": "1234567890", "bankName": "Wema Bank"}
+                    ],
+                    "accountName": "CSC 101",
+                    "status": "ACTIVE",
+                }
+            },
         )
-    pay_ref = init_resp.json()["payment_reference"]
+    )
+    resp = client.post(
+        f"/communities/{community['id']}/reserved-account",
+        json={"bvn": "12345678901"},
+        headers=rep,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["account_number"] == "1234567890"
 
-    # Monnify claims PAID but amountPaid (500) < amount_due (1000)
-    with respx.mock:
-        _mock_login()
-        _mock_verify(payment_status="PAID", amount_paid=500.0)
-        client.post("/webhooks/monnify", json={"paymentReference": pay_ref})
+    resp = post_webhook(
+        client,
+        {
+            "transactionReference": "MNFY|RT|1",
+            "amountPaid": 5000,
+            "product": {
+                "reference": f"acafund-comm-{community['id']}",
+                "type": "RESERVED_ACCOUNT",
+            },
+        },
+    )
+    assert resp.json()["status"] == "reserved_account_credit_recorded"
+    assert get_balance(client, rep, community["id"]) == 5000.0
 
-    payment = db_session.query(Payment).filter(Payment.payment_reference == pay_ref).first()
-    db_session.refresh(payment)
-    assert payment.status == PaymentStatus.PENDING
 
+def test_admin_sync_reconciles(client, monnify_mock):
+    rep, _, _, pay = setup_paying_member(client, monnify_mock)
+    mock_verify(monnify_mock)
 
-def test_sync_reconciles_stuck_pending_payment(client, db_session):
-    s = _setup(client, "p5")
-    col = _create_collection(client, s["admin"]["headers"], s["comm"]["id"])
-
-    with respx.mock:
-        _mock_login()
-        _mock_init()
-        init_resp = client.post(
-            f"/collections/{col['id']}/pay",
-            json={"redirect_url": "https://acafund.app/done"},
-            headers=s["m1"]["headers"],
+    with SessionLocal() as db:
+        payment_id = (
+            db.query(Payment)
+            .filter(Payment.payment_reference == pay["payment_reference"])
+            .one()
+            .id
         )
-    pay_ref = init_resp.json()["payment_reference"]
-    payment_id = db_session.query(Payment).filter(Payment.payment_reference == pay_ref).first().id
 
-    # Admin manually syncs — verify returns PAID
-    with respx.mock:
-        _mock_login()
-        _mock_verify(payment_status="PAID", amount_paid=1000.0)
-        resp = client.post(f"/payments/{payment_id}/sync", headers=s["admin"]["headers"])
-
+    resp = client.post(f"/payments/{payment_id}/sync", headers=rep)
     assert resp.status_code == 200
     assert resp.json()["status"] == "reconciled"
 
-    payment = db_session.query(Payment).filter(Payment.id == payment_id).first()
-    db_session.refresh(payment)
-    assert payment.status == PaymentStatus.PAID
-
-    entries = (
-        db_session.query(LedgerEntry)
-        .filter(LedgerEntry.reference_id == payment_id, LedgerEntry.reference_type == "payment")
-        .all()
-    )
-    assert len(entries) == 1
+    resp = client.post(f"/payments/{payment_id}/sync", headers=rep)
+    assert resp.json()["status"] == "already_paid"

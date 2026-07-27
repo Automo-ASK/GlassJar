@@ -2,84 +2,76 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.database import Base, engine, sync_schema
+from app.core.errors import DomainError
+from app.database import Base, engine
 
-import app.models.user  # noqa: F401
-import app.models.community  # noqa: F401
-import app.models.collection  # noqa: F401
-import app.models.payment  # noqa: F401
-import app.models.ledger  # noqa: F401
-import app.models.expense  # noqa: F401
+import app.models  # noqa: F401  (register all tables on Base.metadata)
+
+from app.routers.assistant import router as assistant_router
+from app.routers.auth import router as auth_router
+from app.routers.collections import router as collections_router
+from app.routers.communities import router as communities_router
+from app.routers.expenses import router as expenses_router
+from app.routers.payments import router as payments_router
+from app.routers.public import router as public_router
+from app.routers.reports import router as reports_router
+from app.routers.users import router as users_router
+from app.routers.webhooks import router as webhooks_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    sync_schema()
+    # SQLite (dev/tests) is created on the fly; Postgres schema is managed by
+    # Alembic ("alembic upgrade head" runs before the server starts).
+    if settings.database_url.startswith("sqlite"):
+        Base.metadata.create_all(bind=engine)
     yield
 
 
-app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
 
-# Broad CORS middleware — covers normal responses
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# Raw middleware that stamps CORS headers on EVERY response (including 4xx/5xx)
-# so the browser never misreads a backend error as a CORS block.
-@app.middleware("http")
-async def force_cors(request: Request, call_next):
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "86400",
-            },
-        )
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+@app.exception_handler(DomainError)
+async def domain_error_handler(request: Request, exc: DomainError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
-# Unhandled exceptions bypass the middleware stack entirely, so a bare 500
-# would reach the browser without CORS headers and be misreported as a CORS
-# failure. This handler makes 500s carry them explicitly.
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Raised exceptions bypass CORSMiddleware, so a bare 500 would reach the
+    # browser without CORS headers and be misreported as a CORS failure.
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin and origin in settings.cors_origins:
+        headers["Access-Control-Allow-Origin"] = origin
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
-        headers={"Access-Control-Allow-Origin": "*"},
+        headers=headers,
     )
 
-
-from app.routers.auth import router as auth_router
-from app.routers.communities import router as communities_router
-from app.routers.collections import router as collections_router
-from app.routers.payments import router as payments_router
-from app.routers.expenses import router as expenses_router
-from app.routers.reports import router as reports_router
-from app.routers.assistant import router as assistant_router
-from app.routers.users import router as users_router
 
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(communities_router)
 app.include_router(collections_router)
 app.include_router(payments_router)
+app.include_router(public_router)
+app.include_router(webhooks_router)
 app.include_router(expenses_router)
 app.include_router(reports_router)
 app.include_router(assistant_router)

@@ -12,17 +12,22 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
 
     database_url: str
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
     monnify_api_key: str = ""
     monnify_secret_key: str = ""
-    monnify_contract_code: str = "3412200072"
+    monnify_contract_code: str = ""
     monnify_base_url: str = "https://sandbox.monnify.com"
 
-    anthropic_api_key: str = ""
     nvidia_api_key: str = ""
 
+    # Comma-separated list of allowed browser origins.
     frontend_origin: str = "http://localhost:3000"
-    expense_approval_threshold: float = 50000
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.frontend_origin.split(",") if o.strip()]
 
 
 settings = Settings()

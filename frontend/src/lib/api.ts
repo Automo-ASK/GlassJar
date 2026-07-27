@@ -1,8 +1,9 @@
 import type {
-  TokenResponse, User, Community, CommunityMember, Collection,
+  TokenResponse, User, Community, CommunityMember, CommunityLookup, Collection,
   CollectionDetail, CollectionDashboard, CollectionMemberEntry,
   CommunityDashboard, Expense, LedgerResponse, TransparencyReport,
-  MemberRole, ActiveCollectionSummary, ReservedAccount,
+  MemberRole, ManualChannel, ActiveCollectionSummary, ReservedAccount,
+  PublicCollection, PublicPayment,
 } from './types'
 
 const BASE_URL =
@@ -49,7 +50,7 @@ async function req<T>(
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
 
-  if (res.status === 401) {
+  if (res.status === 401 && !skipAuth) {
     clearToken()
     window.location.href = '/login'
     throw new Error('Unauthorised')
@@ -63,8 +64,8 @@ async function req<T>(
 }
 
 // When the backend is unreachable, req() throws a TypeError ("Failed to fetch").
-// Each exported function catches that specifically and returns offline stand-in data
-// so the UI can navigate normally. Real HTTP errors (4xx/5xx) still surface as errors.
+// Read-only calls catch that specifically and return offline stand-in data so
+// the UI can navigate; mutating calls surface the error.
 function isOffline(e: unknown): boolean {
   return e instanceof TypeError
 }
@@ -78,61 +79,27 @@ const OFFLINE_COMMUNITY = (overrides: Partial<Community> = {}): Community => ({
   invite_code: 'INVITE-001', created_by: 1, ...overrides,
 })
 
-const OFFLINE_MEMBER = (userId = 1, role: MemberRole = 'admin'): CommunityMember => ({
-  id: userId, community_id: 1, user_id: userId, role,
-})
-
-const OFFLINE_COLLECTION = (overrides: Partial<Collection> = {}): Collection => ({
-  id: 1, community_id: 1, title: 'Collection', description: null,
-  amount_per_member: 0, target_amount: null, deadline: null,
-  budget_allocation: null, status: 'active', created_by: 1,
-  created_at: new Date().toISOString(), ...overrides,
-})
-
-const OFFLINE_EXPENSE = (overrides: Partial<Expense> = {}): Expense => ({
-  id: 1, community_id: 1, title: 'Expense', amount: 0, category: 'Other',
-  status: 'pending', receipt_url: null, requested_by: 1, approved_by: null,
-  collection_id: null, created_at: new Date().toISOString(), decision_note: null,
-  decided_at: null, destination_bank_name: null, destination_account_number: null,
-  destination_account_name: null, payout_reference: null, paid_out_at: null,
-  paid_out_by: null, ...overrides,
-})
-
-const OFFLINE_RESERVED_ACCOUNT = (): ReservedAccount => ({
-  bank_name: 'First Bank', account_number: '3012345678',
-  account_name: 'AcaFund Demo Community', status: 'active',
+const OFFLINE_MEMBER = (id = 1, role: MemberRole = 'admin'): CommunityMember => ({
+  id, community_id: 1, user_id: id, display_name: 'You',
+  role, is_claimed: true,
 })
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function register(full_name: string, email: string, password: string): Promise<TokenResponse> {
-  try {
-    const data = await req<TokenResponse>('/auth/register', {
-      method: 'POST', body: JSON.stringify({ full_name, email, password }),
-    }, true)
-    setToken(data.access_token)
-    return data
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    const token = 'local-session'
-    setToken(token)
-    return { access_token: token, token_type: 'bearer' }
-  }
+  const data = await req<TokenResponse>('/auth/register', {
+    method: 'POST', body: JSON.stringify({ full_name, email, password }),
+  }, true)
+  setToken(data.access_token)
+  return data
 }
 
 export async function login(email: string, password: string): Promise<TokenResponse> {
-  try {
-    const data = await req<TokenResponse>('/auth/login', {
-      method: 'POST', body: JSON.stringify({ email, password }),
-    }, true)
-    setToken(data.access_token)
-    return data
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    const token = 'local-session'
-    setToken(token)
-    return { access_token: token, token_type: 'bearer' }
-  }
+  const data = await req<TokenResponse>('/auth/login', {
+    method: 'POST', body: JSON.stringify({ email, password }),
+  }, true)
+  setToken(data.access_token)
+  return data
 }
 
 export async function getMe(): Promise<User> {
@@ -161,15 +128,14 @@ export async function createCommunity(name: string, description: string): Promis
   })
 }
 
-export async function joinCommunity(invite_code: string): Promise<{ message: string; community_id: number }> {
-  try {
-    return await req('/communities/join', {
-      method: 'POST', body: JSON.stringify({ invite_code }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    throw new Error('Cannot join community — backend is unreachable. Try again in a moment.')
-  }
+export async function lookupCommunity(invite_code: string): Promise<CommunityLookup> {
+  return req<CommunityLookup>(`/communities/lookup?invite_code=${encodeURIComponent(invite_code)}`)
+}
+
+export async function joinCommunity(invite_code: string, claim_member_id?: number): Promise<CommunityMember> {
+  return req<CommunityMember>('/communities/join', {
+    method: 'POST', body: JSON.stringify({ invite_code, claim_member_id: claim_member_id ?? null }),
+  })
 }
 
 export async function getCommunity(id: number): Promise<Community> {
@@ -190,6 +156,8 @@ export async function getCommunityDashboard(id: number): Promise<CommunityDashbo
   }
 }
 
+// ── Roster ────────────────────────────────────────────────────────────────────
+
 export async function getMembers(communityId: number): Promise<CommunityMember[]> {
   try {
     return await req<CommunityMember[]>(`/communities/${communityId}/members`)
@@ -199,15 +167,30 @@ export async function getMembers(communityId: number): Promise<CommunityMember[]
   }
 }
 
-export async function changeMemberRole(communityId: number, userId: number, role: MemberRole): Promise<CommunityMember> {
-  try {
-    return await req<CommunityMember>(`/communities/${communityId}/members/${userId}/role`, {
-      method: 'PATCH', body: JSON.stringify({ new_role: role }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_MEMBER(userId, role)
-  }
+export async function addMember(
+  communityId: number,
+  data: { display_name: string; email?: string; phone?: string },
+): Promise<CommunityMember> {
+  return req<CommunityMember>(`/communities/${communityId}/members`, {
+    method: 'POST', body: JSON.stringify(data),
+  })
+}
+
+export async function addMembersBulk(communityId: number, names: string[]): Promise<CommunityMember[]> {
+  return req<CommunityMember[]>(`/communities/${communityId}/members/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ members: names.map((display_name) => ({ display_name })) }),
+  })
+}
+
+export async function changeMemberRole(communityId: number, memberId: number, role: MemberRole): Promise<CommunityMember> {
+  return req<CommunityMember>(`/communities/${communityId}/members/${memberId}/role`, {
+    method: 'PATCH', body: JSON.stringify({ role }),
+  })
+}
+
+export async function removeMember(communityId: number, memberId: number): Promise<void> {
+  return req<void>(`/communities/${communityId}/members/${memberId}`, { method: 'DELETE' })
 }
 
 // ── Collections ───────────────────────────────────────────────────────────────
@@ -231,29 +214,13 @@ export async function createCollection(
     budget_allocation?: Record<string, number>
   },
 ): Promise<Collection> {
-  try {
-    return await req<Collection>(`/communities/${communityId}/collections`, {
-      method: 'POST', body: JSON.stringify(data),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_COLLECTION({
-      id: Date.now(), community_id: communityId,
-      title: data.title, description: data.description ?? null,
-      amount_per_member: data.amount_per_member,
-      deadline: data.deadline ?? null,
-      budget_allocation: data.budget_allocation ?? null,
-    })
-  }
+  return req<Collection>(`/communities/${communityId}/collections`, {
+    method: 'POST', body: JSON.stringify(data),
+  })
 }
 
 export async function getCollection(id: number): Promise<CollectionDetail> {
-  try {
-    return await req<CollectionDetail>(`/collections/${id}`)
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { ...OFFLINE_COLLECTION({ id }), members: [] }
-  }
+  return req<CollectionDetail>(`/collections/${id}`)
 }
 
 export async function getCollectionDashboard(id: number): Promise<CollectionDashboard> {
@@ -266,51 +233,74 @@ export async function getCollectionDashboard(id: number): Promise<CollectionDash
 }
 
 export async function getMyPayment(collectionId: number): Promise<CollectionMemberEntry> {
-  try {
-    return await req<CollectionMemberEntry>(`/collections/${collectionId}/payments/me`)
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { id: 1, collection_id: collectionId, user_id: 1, amount_due: 0, status: 'pending', paid_at: null }
-  }
+  return req<CollectionMemberEntry>(`/collections/${collectionId}/payments/me`)
 }
 
 export async function closeCollection(id: number): Promise<Collection> {
-  try {
-    return await req<Collection>(`/collections/${id}/close`, { method: 'PATCH' })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_COLLECTION({ id, status: 'closed' })
-  }
+  return req<Collection>(`/collections/${id}/close`, { method: 'PATCH' })
 }
+
+export async function syncCollectionEntries(id: number): Promise<{ added: number }> {
+  return req<{ added: number }>(`/collections/${id}/entries/sync`, { method: 'POST' })
+}
+
+// ── Entry actions (manual marking) ────────────────────────────────────────────
+
+export async function markEntryPaid(
+  collectionId: number, entryId: number, channel: ManualChannel, note?: string,
+): Promise<CollectionMemberEntry> {
+  return req<CollectionMemberEntry>(`/collections/${collectionId}/entries/${entryId}/mark-paid`, {
+    method: 'POST', body: JSON.stringify({ channel, note: note ?? null }),
+  })
+}
+
+export async function waiveEntry(collectionId: number, entryId: number, note?: string): Promise<CollectionMemberEntry> {
+  return req<CollectionMemberEntry>(`/collections/${collectionId}/entries/${entryId}/waive`, {
+    method: 'POST', body: JSON.stringify({ note: note ?? null }),
+  })
+}
+
+export async function revertEntry(collectionId: number, entryId: number, note?: string): Promise<CollectionMemberEntry> {
+  return req<CollectionMemberEntry>(`/collections/${collectionId}/entries/${entryId}/revert`, {
+    method: 'POST', body: JSON.stringify({ note: note ?? null }),
+  })
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
 
 export async function initiatePayment(collectionId: number): Promise<{ checkout_url: string; payment_reference: string }> {
-  try {
-    const redirect_url = `${window.location.origin}/payment-return?collection_id=${collectionId}`
-    return await req(`/collections/${collectionId}/pay`, {
-      method: 'POST', body: JSON.stringify({ redirect_url }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { checkout_url: `${window.location.origin}/payment-return?collection_id=${collectionId}`, payment_reference: '' }
-  }
+  const redirect_url = `${window.location.origin}/payment-return?collection_id=${collectionId}`
+  return req(`/collections/${collectionId}/pay`, {
+    method: 'POST', body: JSON.stringify({ redirect_url }),
+  })
 }
 
-export async function syncPayment(paymentId: number): Promise<CollectionMemberEntry> {
-  try {
-    return await req<CollectionMemberEntry>(`/payments/${paymentId}/sync`, { method: 'POST' })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { id: paymentId, collection_id: 1, user_id: 1, amount_due: 0, status: 'paid', paid_at: new Date().toISOString() }
-  }
+// ── Public (guest) endpoints — no auth ────────────────────────────────────────
+
+export async function getPublicCollection(shareToken: string): Promise<PublicCollection> {
+  return req<PublicCollection>(`/public/collections/${shareToken}`, {}, true)
+}
+
+export async function guestPay(
+  shareToken: string, entryId: number, payerEmail?: string,
+): Promise<{ checkout_url: string; payment_reference: string }> {
+  const redirect_url = `${window.location.origin}/payment-return?pay_token=${shareToken}`
+  return req(`/public/collections/${shareToken}/entries/${entryId}/pay`, {
+    method: 'POST',
+    body: JSON.stringify({ redirect_url, payer_email: payerEmail || null }),
+  }, true)
+}
+
+export async function getPublicPayment(reference: string): Promise<PublicPayment> {
+  return req<PublicPayment>(`/public/payments/${reference}`, {}, true)
+}
+
+export async function syncPublicPayment(reference: string): Promise<PublicPayment> {
+  return req<PublicPayment>(`/public/payments/${reference}/sync`, { method: 'POST' }, true)
 }
 
 export async function getTransparencyReport(collectionId: number): Promise<TransparencyReport> {
-  try {
-    return await req<TransparencyReport>(`/collections/${collectionId}/transparency`, {}, true)
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { id: collectionId, title: 'Collection', description: null, target_amount: null, amount_collected: 0, paid_count: 0, pending_count: 0, waived_count: 0, budget_allocation: null, expenses: [] }
-  }
+  return req<TransparencyReport>(`/collections/${collectionId}/transparency`, {}, true)
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
@@ -337,78 +327,44 @@ export async function createExpense(
     destination_account_name: string
   },
 ): Promise<Expense> {
-  try {
-    return await req<Expense>(`/communities/${communityId}/expenses`, {
-      method: 'POST', body: JSON.stringify(data),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_EXPENSE({
-      id: Date.now(), community_id: communityId,
-      title: data.title, amount: data.amount, category: data.category,
-      receipt_url: data.receipt_url ?? null,
-      collection_id: data.collection_id ?? null,
-      destination_bank_name: data.destination_bank_name,
-      destination_account_number: data.destination_account_number,
-      destination_account_name: data.destination_account_name,
-    })
-  }
+  return req<Expense>(`/communities/${communityId}/expenses`, {
+    method: 'POST', body: JSON.stringify(data),
+  })
 }
+
+export async function approveExpense(expenseId: number, note?: string): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/approve`, {
+    method: 'POST', body: JSON.stringify({ note: note ?? null }),
+  })
+}
+
+export async function rejectExpense(expenseId: number, note: string): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/reject`, {
+    method: 'POST', body: JSON.stringify({ note }),
+  })
+}
+
+export async function markExpensePaidOut(expenseId: number, payout_reference: string): Promise<Expense> {
+  return req<Expense>(`/expenses/${expenseId}/mark-paid-out`, {
+    method: 'POST', body: JSON.stringify({ payout_reference }),
+  })
+}
+
+// ── Reserved accounts ─────────────────────────────────────────────────────────
 
 export async function getReservedAccount(communityId: number): Promise<ReservedAccount | null> {
   try {
-    return await req<ReservedAccount>(`/communities/${communityId}/reserved-account`)
-  } catch (e) {
+    return await req<ReservedAccount | null>(`/communities/${communityId}/reserved-account`)
+  } catch {
     // Never crash the dashboard over a missing reserved account
     return null
   }
 }
 
 export async function setupReservedAccount(communityId: number, bvn: string): Promise<ReservedAccount> {
-  try {
-    return await req<ReservedAccount>(`/communities/${communityId}/reserved-account`, {
-      method: 'POST', body: JSON.stringify({ bvn }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_RESERVED_ACCOUNT()
-  }
-}
-
-export async function markExpensePaidOut(expenseId: number, payout_reference: string): Promise<Expense> {
-  try {
-    return await req<Expense>(`/expenses/${expenseId}/mark-paid-out`, {
-      method: 'POST', body: JSON.stringify({ payout_reference }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_EXPENSE({
-      id: expenseId, status: 'paid_out',
-      payout_reference, paid_out_at: new Date().toISOString(),
-    })
-  }
-}
-
-export async function approveExpense(expenseId: number, note?: string): Promise<Expense> {
-  try {
-    return await req<Expense>(`/expenses/${expenseId}/approve`, {
-      method: 'POST', body: JSON.stringify({ decision_note: note ?? null }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_EXPENSE({ id: expenseId, status: 'approved', decision_note: note ?? null })
-  }
-}
-
-export async function rejectExpense(expenseId: number, note: string): Promise<Expense> {
-  try {
-    return await req<Expense>(`/expenses/${expenseId}/reject`, {
-      method: 'POST', body: JSON.stringify({ decision_note: note }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return OFFLINE_EXPENSE({ id: expenseId, status: 'rejected', decision_note: note })
-  }
+  return req<ReservedAccount>(`/communities/${communityId}/reserved-account`, {
+    method: 'POST', body: JSON.stringify({ bvn }),
+  })
 }
 
 // ── Ledger ────────────────────────────────────────────────────────────────────
@@ -425,12 +381,7 @@ export async function getLedger(communityId: number): Promise<LedgerResponse> {
 // ── AI Assistant ──────────────────────────────────────────────────────────────
 
 export async function askAssistant(communityId: number, question: string): Promise<{ answer: string }> {
-  try {
-    return await req<{ answer: string }>(`/communities/${communityId}/assistant/ask`, {
-      method: 'POST', body: JSON.stringify({ question }),
-    })
-  } catch (e) {
-    if (!isOffline(e)) throw e
-    return { answer: `Backend not yet connected. Question received: "${question}"` }
-  }
+  return req<{ answer: string }>(`/communities/${communityId}/assistant/ask`, {
+    method: 'POST', body: JSON.stringify({ question }),
+  })
 }

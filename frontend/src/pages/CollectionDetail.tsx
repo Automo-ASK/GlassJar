@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Share2, Lock, RefreshCw, CheckCircle, Clock, User, ChevronLeft } from 'lucide-react'
+import {
+  Share2, Lock, RefreshCw, CheckCircle, Clock, User, ChevronLeft,
+  Link as LinkIcon, Undo2, UserPlus,
+} from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import LoadingState from '../components/ui/LoadingState'
@@ -8,8 +11,12 @@ import ErrorState from '../components/ui/ErrorState'
 import {
   getCollection, getCollectionDashboard, getMyPayment,
   initiatePayment, closeCollection, getMembers,
+  markEntryPaid, waiveEntry, revertEntry, syncCollectionEntries,
 } from '../lib/api'
-import type { CollectionDetail as CollDetailType, CollectionDashboard, CollectionMemberEntry, CommunityMember } from '../lib/types'
+import type {
+  CollectionDetail as CollDetailType, CollectionDashboard,
+  CollectionMemberEntry, CommunityMember, ManualChannel,
+} from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
 
 function fmt(n: number) {
@@ -31,9 +38,11 @@ export default function CollectionDetail() {
   const [paying, setPaying] = useState(false)
   const [closing, setClosing] = useState(false)
   const [actionError, setActionError] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'report' | 'paylink' | null>(null)
+  const [entryBusy, setEntryBusy] = useState<number | null>(null)
 
   const myRole = communityMembers.find((m) => m.user_id === user?.id)?.role
+  const isManager = myRole === 'admin' || myRole === 'treasurer'
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -59,8 +68,9 @@ export default function CollectionDetail() {
   const handlePay = async () => {
     setActionError(''); setPaying(true)
     try {
-      const { checkout_url } = await initiatePayment(collectionId)
+      const { checkout_url, payment_reference } = await initiatePayment(collectionId)
       sessionStorage.setItem('acafund_payment_collection_id', String(collectionId))
+      sessionStorage.setItem('acafund_payment_reference', payment_reference)
       window.location.href = checkout_url
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : 'Payment initiation failed')
@@ -79,17 +89,63 @@ export default function CollectionDetail() {
     } finally { setClosing(false) }
   }
 
-  const shareTransparencyLink = () => {
-    const url = `${window.location.origin}/report/${collectionId}`
+  const copyLink = (kind: 'report' | 'paylink', url: string) => {
     navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopied(kind)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  const patchEntry = (updated: CollectionMemberEntry) => {
+    setCollection((prev) =>
+      prev ? { ...prev, entries: prev.entries.map((e) => (e.id === updated.id ? updated : e)) } : prev,
+    )
+    getCollectionDashboard(collectionId).then(setDashboard).catch(() => {})
+  }
+
+  const handleMarkPaid = async (entry: CollectionMemberEntry, channel: ManualChannel) => {
+    setEntryBusy(entry.id); setActionError('')
+    try {
+      patchEntry(await markEntryPaid(collectionId, entry.id, channel))
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : 'Failed to mark as paid')
+    } finally { setEntryBusy(null) }
+  }
+
+  const handleWaive = async (entry: CollectionMemberEntry) => {
+    if (!confirm(`Waive ${entry.display_name}'s dues for this collection?`)) return
+    setEntryBusy(entry.id); setActionError('')
+    try {
+      patchEntry(await waiveEntry(collectionId, entry.id))
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : 'Failed to waive')
+    } finally { setEntryBusy(null) }
+  }
+
+  const handleRevert = async (entry: CollectionMemberEntry) => {
+    if (!confirm(`Undo the ${entry.status} mark for ${entry.display_name}? Gateway-verified payments cannot be undone.`)) return
+    setEntryBusy(entry.id); setActionError('')
+    try {
+      patchEntry(await revertEntry(collectionId, entry.id))
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : 'Failed to undo')
+    } finally { setEntryBusy(null) }
+  }
+
+  const handleSyncEntries = async () => {
+    setActionError('')
+    try {
+      const { added } = await syncCollectionEntries(collectionId)
+      if (added > 0) await load()
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : 'Failed to sync roster')
+    }
   }
 
   if (loading) return <LoadingState />
   if (error || !collection) return <ErrorState message={error} onRetry={load} />
 
   const pct = dashboard?.percent_target_reached ?? 0
+  const payLink = `${window.location.origin}/pay/${collection.share_token}`
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
@@ -110,18 +166,35 @@ export default function CollectionDetail() {
             <p className="text-[14px] text-on-surface-variant mt-1">{collection.description}</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="white" size="sm" onClick={load}>
             <RefreshCw size={13} /> Refresh
           </Button>
           {myRole === 'admin' && (
-            <Button variant="white" size="sm" onClick={shareTransparencyLink}>
+            <Button variant="white" size="sm" onClick={() => copyLink('report', `${window.location.origin}/report/${collectionId}`)}>
               <Share2 size={13} />
-              {copied ? 'Link Copied!' : 'Share Report'}
+              {copied === 'report' ? 'Link Copied!' : 'Share Report'}
             </Button>
           )}
         </div>
       </div>
+
+      {/* Shareable payment link — the core distribution loop */}
+      {isManager && collection.status === 'active' && (
+        <div className="border-2 border-black bg-secondary-fixed p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Payment Link — share with your class</p>
+            <p className="text-[13px] font-bold truncate">{payLink}</p>
+            <p className="text-[11px] text-on-surface-variant mt-0.5">
+              Members open it, pick their name, and pay. No account needed.
+            </p>
+          </div>
+          <Button variant="black" size="sm" onClick={() => copyLink('paylink', payLink)}>
+            <LinkIcon size={13} />
+            {copied === 'paylink' ? 'Copied!' : 'Copy Link'}
+          </Button>
+        </div>
+      )}
 
       {actionError && (
         <div className="border-2 border-error bg-error-container p-3 text-[13px] font-bold text-error">{actionError}</div>
@@ -184,14 +257,14 @@ export default function CollectionDetail() {
         <div className="border-2 border-black bg-white p-5 neo-shadow">
           <h2 className="text-[14px] font-bold uppercase tracking-[0.06em] mb-4">Budget Allocation</h2>
           <div className="flex flex-col gap-3">
-            {Object.entries(collection.budget_allocation).map(([cat, pct]) => (
+            {Object.entries(collection.budget_allocation).map(([cat, share]) => (
               <div key={cat}>
                 <div className="flex justify-between text-[13px] font-bold mb-1">
                   <span>{cat}</span>
-                  <span>{pct}%</span>
+                  <span>{share}%</span>
                 </div>
                 <div className="w-full bg-surface-container border border-black h-2">
-                  <div className="bg-secondary h-full" style={{ width: `${pct}%` }} />
+                  <div className="bg-secondary h-full" style={{ width: `${share}%` }} />
                 </div>
               </div>
             ))}
@@ -203,33 +276,90 @@ export default function CollectionDetail() {
       <div className="border-2 border-black bg-white neo-shadow">
         <div className="border-b-2 border-black px-5 py-3 flex items-center justify-between">
           <h2 className="text-[14px] font-bold uppercase tracking-[0.06em]">Member Payments</h2>
-          <span className="text-[12px] text-on-surface-variant">{collection.members.length} enrolled</span>
+          <div className="flex items-center gap-3">
+            {isManager && collection.status === 'active' && (
+              <button
+                onClick={handleSyncEntries}
+                className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-primary hover:underline"
+                title="Enroll roster members added after this collection was created"
+              >
+                <UserPlus size={12} /> Sync roster
+              </button>
+            )}
+            <span className="text-[12px] text-on-surface-variant">{collection.entries.length} enrolled</span>
+          </div>
         </div>
         <div className="divide-y-2 divide-black">
-          {collection.members.map((m) => (
-            <div key={m.id} className="px-5 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {m.status === 'paid'
-                  ? <CheckCircle size={16} className="text-primary" />
-                  : <Clock size={16} className="text-on-surface-variant" />
+          {collection.entries.map((entry) => (
+            <div key={entry.id} className="px-5 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {entry.status === 'paid'
+                  ? <CheckCircle size={16} className="text-primary flex-shrink-0" />
+                  : <Clock size={16} className="text-on-surface-variant flex-shrink-0" />
                 }
-                <div>
-                  <p className="text-[13px] font-bold flex items-center gap-1">
-                    <User size={12} /> User #{m.user_id}
-                    {m.user_id === user?.id && <span className="text-on-surface-variant font-normal">(you)</span>}
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold flex items-center gap-1 truncate">
+                    <User size={12} className="flex-shrink-0" /> {entry.display_name}
+                    {myPayment?.id === entry.id && <span className="text-on-surface-variant font-normal">(you)</span>}
                   </p>
-                  {m.paid_at && (
+                  {entry.paid_at && (
                     <p className="text-[11px] text-on-surface-variant">
-                      {new Date(m.paid_at).toLocaleDateString()}
+                      {new Date(entry.paid_at).toLocaleDateString()}
                     </p>
+                  )}
+                  {entry.note && (
+                    <p className="text-[11px] text-on-surface-variant italic truncate">{entry.note}</p>
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[13px] font-bold">{fmt(m.amount_due)}</p>
-                <Badge color={m.status === 'paid' ? 'green' : m.status === 'waived' ? 'blue' : 'gray'}>
-                  {m.status}
-                </Badge>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="text-right">
+                  <p className="text-[13px] font-bold">{fmt(entry.amount_due)}</p>
+                  <Badge color={entry.status === 'paid' ? 'green' : entry.status === 'waived' ? 'blue' : 'gray'}>
+                    {entry.status}
+                  </Badge>
+                </div>
+                {isManager && collection.status === 'active' && (
+                  entry.status === 'pending' ? (
+                    <div className="flex flex-col gap-1">
+                      <button
+                        disabled={entryBusy === entry.id}
+                        onClick={() => handleMarkPaid(entry, 'manual_cash')}
+                        className="border-2 border-black bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-widest neo-shadow-sm neo-btn disabled:opacity-50"
+                        title="Record a cash payment received in person"
+                      >
+                        Got Cash
+                      </button>
+                      <button
+                        disabled={entryBusy === entry.id}
+                        onClick={() => handleMarkPaid(entry, 'manual_transfer')}
+                        className="border-2 border-black bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-widest neo-shadow-sm neo-btn disabled:opacity-50"
+                        title="Record a transfer made outside the platform"
+                      >
+                        Got Transfer
+                      </button>
+                      {myRole === 'admin' && (
+                        <button
+                          disabled={entryBusy === entry.id}
+                          onClick={() => handleWaive(entry)}
+                          className="border-2 border-black bg-surface-container px-2 py-1 text-[10px] font-bold uppercase tracking-widest neo-shadow-sm neo-btn disabled:opacity-50"
+                        >
+                          Waive
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      disabled={entryBusy === entry.id}
+                      onClick={() => handleRevert(entry)}
+                      className="border-2 border-black bg-white p-1.5 neo-shadow-sm neo-btn disabled:opacity-50"
+                      title="Undo (manual marks and waivers only)"
+                      aria-label={`Undo mark for ${entry.display_name}`}
+                    >
+                      <Undo2 size={13} />
+                    </button>
+                  )
+                )}
               </div>
             </div>
           ))}

@@ -1,41 +1,51 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.models.enums import ExpenseStatus
+from app.models.enums import ExpenseStatus, db_enum
 
 
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_expenses_amount_positive"),
+        # Dashboards count pending expenses per community on every load.
+        Index("ix_expenses_community_status", "community_id", "status"),
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.id"), nullable=False, index=True)
-    collection_id = Column(Integer, ForeignKey("collections.id"), nullable=True)
-    title = Column(String, nullable=False)
-    amount = Column(Float, nullable=False)
-    category = Column(String, nullable=False)
-    receipt_url = Column(String, nullable=True)
-    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(Enum(ExpenseStatus, native_enum=False), nullable=False, default=ExpenseStatus.PENDING)
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    decision_note = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    decided_at = Column(DateTime(timezone=True), nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    community_id: Mapped[int] = mapped_column(ForeignKey("communities.id"))
+    collection_id: Mapped[Optional[int]] = mapped_column(ForeignKey("collections.id"))
+    title: Mapped[str] = mapped_column(String(255))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    category: Mapped[str] = mapped_column(String(64))
+    receipt_url: Mapped[Optional[str]] = mapped_column(Text)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[ExpenseStatus] = mapped_column(
+        db_enum(ExpenseStatus), default=ExpenseStatus.PENDING
+    )
+    approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    decision_note: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
-    # Destination account (set by Treasurer at creation)
-    destination_bank_name = Column(String, nullable=True)
-    destination_account_number = Column(String, nullable=True)
-    destination_account_name = Column(String, nullable=True)
-
-    # Payout tracking (set when Admin/Treasurer marks as paid out)
-    payout_reference = Column(String, nullable=True)
-    paid_out_at = Column(DateTime(timezone=True), nullable=True)
-    paid_out_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    community = relationship("Community")
-    collection = relationship("Collection")
-    requester = relationship("User", foreign_keys=[requested_by])
-    decider = relationship("User", foreign_keys=[approved_by])
-    payer = relationship("User", foreign_keys=[paid_out_by])
+    destination_bank_name: Mapped[Optional[str]] = mapped_column(String(128))
+    destination_account_number: Mapped[Optional[str]] = mapped_column(String(32))
+    destination_account_name: Mapped[Optional[str]] = mapped_column(String(255))
+    payout_reference: Mapped[Optional[str]] = mapped_column(String(128))
+    paid_out_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    paid_out_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))

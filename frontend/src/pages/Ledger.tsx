@@ -7,7 +7,7 @@ import LoadingState from '../components/ui/LoadingState'
 import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import { getLedger } from '../lib/api'
-import type { LedgerEntry } from '../lib/types'
+import type { LedgerEntryOut as LedgerEntry } from '../lib/types'
 
 function fmt(n: number) { return `₦${Math.abs(n).toLocaleString('en-NG')}` }
 

@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 import httpx
@@ -40,12 +41,13 @@ class MonnifyService:
             raise MonnifyError(resp.status_code, resp.text)
 
         self._token = resp.json()["responseBody"]["accessToken"]
+        # Monnify tokens live 1 hour; refresh 5 minutes early.
         self._token_expiry = now + timedelta(minutes=55)
         return self._token
 
     async def init_transaction(
         self,
-        amount: float,
+        amount: Decimal,
         customer_name: str,
         customer_email: str,
         payment_reference: str,
@@ -58,7 +60,7 @@ class MonnifyService:
                 f"{settings.monnify_base_url}/api/v1/merchant/transactions/init-transaction",
                 headers={"Authorization": f"Bearer {token}"},
                 json={
-                    "amount": amount,
+                    "amount": float(amount),
                     "customerName": customer_name,
                     "customerEmail": customer_email,
                     "paymentReference": payment_reference,
@@ -81,7 +83,8 @@ class MonnifyService:
     ) -> dict:
         """Create a dedicated reserved bank account for a community.
 
-        Returns dict with keys: account_number, bank_name, account_name, status (lowercase).
+        Returns dict with keys: account_number, bank_name, account_name,
+        status (lowercase).
         """
         token = await self._get_access_token()
         account_reference = f"acafund-comm-{community_id}"
@@ -108,6 +111,7 @@ class MonnifyService:
         first = accounts[0] if accounts else {}
         raw_status = body.get("status", "ACTIVE")
         return {
+            "account_reference": account_reference,
             "account_number": first.get("accountNumber", ""),
             "bank_name": first.get("bankName", ""),
             "account_name": body.get("accountName", community_name),

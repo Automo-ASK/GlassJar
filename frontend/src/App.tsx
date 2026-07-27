@@ -18,6 +18,7 @@ import Collections from './pages/Collections'
 import CreateCollection from './pages/CreateCollection'
 import CollectionDetail from './pages/CollectionDetail'
 import PaymentReturn from './pages/PaymentReturn'
+import PublicPay from './pages/PublicPay'
 import Expenses from './pages/Expenses'
 import CreateExpense from './pages/CreateExpense'
 import ExpenseApproval from './pages/ExpenseApproval'
@@ -51,6 +52,9 @@ function AppRoutes() {
 
       {/* Public transparency report */}
       <Route path="/report/:collectionId" element={<TransparencyReport />} />
+
+      {/* Public guest payment page — pick your name, pay, no account */}
+      <Route path="/pay/:shareToken" element={<PublicPay />} />
 
       {/* Protected app */}
       <Route element={<ProtectedRoute />}>

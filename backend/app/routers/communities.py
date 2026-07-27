@@ -1,255 +1,159 @@
-import secrets
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import require_community_role
-from app.core.security import get_current_user
+from app.core.deps import get_current_user, get_membership, require_community_role
 from app.database import get_db
-from app.models.community import Community, CommunityMember
-from app.models.enums import MemberRole
-from app.models.user import User  # noqa: F401
-from app.services.monnify import MonnifyError, monnify_service
+from app.models import Member, MemberRole, User
+from app.schemas.communities import (
+    CommunityCreateIn,
+    CommunityLookupOut,
+    CommunityOut,
+    JoinIn,
+    MemberAddIn,
+    MemberBulkAddIn,
+    MemberOut,
+    ReservedAccountOut,
+    ReservedAccountSetupIn,
+    RoleChangeIn,
+    UnclaimedMemberOut,
+)
+from app.services import communities as communities_service
 
 router = APIRouter(prefix="/communities", tags=["communities"])
 
-ALL_ROLES = [MemberRole.ADMIN, MemberRole.TREASURER, MemberRole.AUDITOR, MemberRole.MEMBER]
-
-
-class CreateCommunityIn(BaseModel):
-    name: str
-    description: Optional[str] = None
-
-
-class JoinCommunityIn(BaseModel):
-    invite_code: str
-
-
-class ChangeRoleIn(BaseModel):
-    new_role: MemberRole
-
-
-class SetupReservedAccountIn(BaseModel):
-    bvn: str
-
-
-class ReservedAccountOut(BaseModel):
-    bank_name: str
-    account_number: str
-    account_name: str
-    status: str
-
-
-class CommunityOut(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    invite_code: str
-    created_by: int
-    model_config = {"from_attributes": True}
-
-
-class MemberOut(BaseModel):
-    id: int
-    community_id: int
-    user_id: int
-    role: MemberRole
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    model_config = {"from_attributes": False}
-
-
-class JoinOut(BaseModel):
-    message: str
-    community_id: int
-
-
-def _unique_invite_code(db: Session) -> str:
-    while True:
-        code = secrets.token_urlsafe(6)[:8].lower()
-        if not db.query(Community).filter(Community.invite_code == code).first():
-            return code
+ADMIN_ONLY = [MemberRole.ADMIN]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=CommunityOut)
 def create_community(
-    body: CreateCommunityIn,
+    body: CommunityCreateIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    community = Community(
-        name=body.name,
-        description=body.description,
-        invite_code=_unique_invite_code(db),
-        created_by=current_user.id,
+    community = communities_service.create_community(db, current_user, body)
+    return communities_service.to_community_out(community)
+
+
+@router.get("/lookup", response_model=CommunityLookupOut)
+def lookup(
+    invite_code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    community, unclaimed = communities_service.lookup_by_invite(db, invite_code)
+    return CommunityLookupOut(
+        id=community.id,
+        name=community.name,
+        description=community.description,
+        unclaimed_members=[UnclaimedMemberOut.model_validate(m) for m in unclaimed],
     )
-    db.add(community)
-    db.flush()
-    db.add(CommunityMember(community_id=community.id, user_id=current_user.id, role=MemberRole.ADMIN))
-    db.commit()
-    db.refresh(community)
-    return community
 
 
-@router.post("/join", response_model=JoinOut)
-def join_community(
-    body: JoinCommunityIn,
+@router.post("/join", response_model=MemberOut)
+def join(
+    body: JoinIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    community = db.query(Community).filter(
-        Community.invite_code == body.invite_code.strip().lower()
-    ).first()
-    if not community:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid invite code")
-
-    if db.query(CommunityMember).filter(
-        CommunityMember.community_id == community.id,
-        CommunityMember.user_id == current_user.id,
-    ).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already a member")
-
-    db.add(CommunityMember(community_id=community.id, user_id=current_user.id, role=MemberRole.MEMBER))
-    db.commit()
-    return JoinOut(message="Joined community", community_id=community.id)
+    return communities_service.join_community(db, current_user, body)
 
 
 @router.get("/{community_id}", response_model=CommunityOut)
 def get_community(
     community_id: int,
-    _: CommunityMember = Depends(require_community_role(ALL_ROLES)),
+    membership: Member = Depends(get_membership),
     db: Session = Depends(get_db),
 ):
-    community = db.query(Community).filter(Community.id == community_id).first()
-    if not community:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Community not found")
-    return community
+    community = communities_service.get_community(db, community_id)
+    return communities_service.to_community_out(community)
 
 
-@router.get("/{community_id}/reserved-account", response_model=Optional[ReservedAccountOut])
+@router.get(
+    "/{community_id}/reserved-account", response_model=ReservedAccountOut | None
+)
 def get_reserved_account(
     community_id: int,
-    _: CommunityMember = Depends(require_community_role(ALL_ROLES)),
+    membership: Member = Depends(get_membership),
     db: Session = Depends(get_db),
 ):
-    community = db.query(Community).filter(Community.id == community_id).first()
-    if not community:
-        raise HTTPException(status_code=404, detail="Community not found")
-    if not community.reserved_account_number:
-        return None
-    return ReservedAccountOut(
-        bank_name=community.reserved_bank_name or "",
-        account_number=community.reserved_account_number,
-        account_name=community.reserved_account_name or "",
-        status=community.reserved_account_status or "active",
-    )
+    community = communities_service.get_community(db, community_id)
+    return communities_service.to_community_out(community).reserved_account
 
 
-@router.post("/{community_id}/reserved-account", response_model=ReservedAccountOut)
+@router.post(
+    "/{community_id}/reserved-account",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ReservedAccountOut,
+)
 async def setup_reserved_account(
     community_id: int,
-    body: SetupReservedAccountIn,
-    _: CommunityMember = Depends(require_community_role([MemberRole.ADMIN])),
+    body: ReservedAccountSetupIn,
+    membership: Member = Depends(require_community_role(ADMIN_ONLY)),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not body.bvn:
-        raise HTTPException(status_code=400, detail="BVN is required to create a reserved account")
-
-    community = db.query(Community).filter(Community.id == community_id).first()
-    if not community:
-        raise HTTPException(status_code=404, detail="Community not found")
-
-    if community.reserved_account_number and community.reserved_account_status == "active":
-        return ReservedAccountOut(
-            bank_name=community.reserved_bank_name or "",
-            account_number=community.reserved_account_number,
-            account_name=community.reserved_account_name or "",
-            status="active",
-        )
-
-    try:
-        result = await monnify_service.create_reserved_account(
-            community_id=community.id,
-            community_name=community.name,
-            admin_name=current_user.full_name or current_user.email,
-            bvn=body.bvn,
-        )
-    except MonnifyError as exc:
-        community.reserved_account_status = "failed"
-        db.commit()
-        return ReservedAccountOut(
-            bank_name="",
-            account_number="",
-            account_name="",
-            status="failed",
-        )
-
-    community.reserved_account_reference = f"acafund-comm-{community.id}"
-    community.reserved_account_number = result["account_number"]
-    community.reserved_bank_name = result["bank_name"]
-    community.reserved_account_name = result["account_name"]
-    community.reserved_account_status = result["status"]
-    db.commit()
-
-    return ReservedAccountOut(
-        bank_name=community.reserved_bank_name or "",
-        account_number=community.reserved_account_number,
-        account_name=community.reserved_account_name or "",
-        status=community.reserved_account_status,
+    community = communities_service.get_community(db, community_id)
+    community = await communities_service.setup_reserved_account(
+        db, membership, community, body.bvn, current_user.full_name
     )
+    return communities_service.to_community_out(community).reserved_account
 
 
-@router.get("/{community_id}/members", response_model=List[MemberOut])
+@router.get("/{community_id}/members", response_model=list[MemberOut])
 def list_members(
     community_id: int,
-    _: CommunityMember = Depends(require_community_role(ALL_ROLES)),
+    membership: Member = Depends(get_membership),
     db: Session = Depends(get_db),
 ):
-    rows = (
-        db.query(CommunityMember, User.full_name, User.email)
-        .join(User, CommunityMember.user_id == User.id)
-        .filter(CommunityMember.community_id == community_id)
-        .all()
-    )
-    return [
-        MemberOut(
-            id=m.id,
-            community_id=m.community_id,
-            user_id=m.user_id,
-            role=m.role,
-            full_name=full_name,
-            email=email,
-        )
-        for m, full_name, email in rows
-    ]
+    return communities_service.list_members(db, community_id)
 
 
-@router.patch("/{community_id}/members/{user_id}/role", response_model=MemberOut)
+@router.post(
+    "/{community_id}/members",
+    status_code=status.HTTP_201_CREATED,
+    response_model=MemberOut,
+)
+def add_member(
+    community_id: int,
+    body: MemberAddIn,
+    membership: Member = Depends(require_community_role(ADMIN_ONLY)),
+    db: Session = Depends(get_db),
+):
+    return communities_service.add_member(db, membership, body)
+
+
+@router.post(
+    "/{community_id}/members/bulk",
+    status_code=status.HTTP_201_CREATED,
+    response_model=list[MemberOut],
+)
+def add_members_bulk(
+    community_id: int,
+    body: MemberBulkAddIn,
+    membership: Member = Depends(require_community_role(ADMIN_ONLY)),
+    db: Session = Depends(get_db),
+):
+    return communities_service.add_members_bulk(db, membership, body.members)
+
+
+@router.patch("/{community_id}/members/{member_id}/role", response_model=MemberOut)
 def change_member_role(
     community_id: int,
-    user_id: int,
-    body: ChangeRoleIn,
-    _: CommunityMember = Depends(require_community_role([MemberRole.ADMIN])),
+    member_id: int,
+    body: RoleChangeIn,
+    membership: Member = Depends(require_community_role(ADMIN_ONLY)),
     db: Session = Depends(get_db),
 ):
-    membership = db.query(CommunityMember).filter(
-        CommunityMember.community_id == community_id,
-        CommunityMember.user_id == user_id,
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
-    membership.role = body.new_role
-    db.commit()
-    db.refresh(membership)
-    user = db.query(User).filter(User.id == membership.user_id).first()
-    return MemberOut(
-        id=membership.id,
-        community_id=membership.community_id,
-        user_id=membership.user_id,
-        role=membership.role,
-        full_name=user.full_name if user else None,
-        email=user.email if user else None,
-    )
+    return communities_service.change_role(db, membership, member_id, body.role)
+
+
+@router.delete(
+    "/{community_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def remove_member(
+    community_id: int,
+    member_id: int,
+    membership: Member = Depends(require_community_role(ADMIN_ONLY)),
+    db: Session = Depends(get_db),
+):
+    communities_service.remove_member(db, membership, member_id)

@@ -1,40 +1,55 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
 import Button from '../components/ui/Button'
-import { getMyPayment, syncPayment } from '../lib/api'
+import { getPublicPayment, syncPublicPayment } from '../lib/api'
 
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  // Monnify can corrupt query params on redirect — sessionStorage is the reliable source
+  // Monnify can corrupt query params on redirect — sessionStorage is the
+  // reliable source. Works for both logged-in members and guests because the
+  // status endpoints are public, keyed by payment reference.
+  const reference =
+    searchParams.get('paymentReference') ??
+    sessionStorage.getItem('acafund_payment_reference') ??
+    ''
   const collectionId = Number(
     searchParams.get('collection_id') ?? sessionStorage.getItem('acafund_payment_collection_id')
   )
-  const paymentId = Number(searchParams.get('payment_id'))
+  const payToken =
+    searchParams.get('pay_token') ?? sessionStorage.getItem('acafund_pay_token') ?? ''
 
   const [status, setStatus] = useState<'confirming' | 'paid' | 'pending' | 'error'>('confirming')
   const [syncing, setSyncing] = useState(false)
   const pollRef = useRef<number | null>(null)
 
-  const checkStatus = async () => {
-    if (!collectionId) { setStatus('error'); return }
+  const goBack = () => {
+    if (collectionId) navigate(`/collections/${collectionId}`)
+    else if (payToken) navigate(`/pay/${payToken}`)
+    else navigate('/')
+  }
+
+  const checkStatus = useCallback(async () => {
+    if (!reference) { setStatus('error'); return }
     try {
-      const pay = await getMyPayment(collectionId)
+      const pay = await getPublicPayment(reference)
       if (pay.status === 'paid') {
         setStatus('paid')
+        sessionStorage.removeItem('acafund_payment_reference')
         sessionStorage.removeItem('acafund_payment_collection_id')
         if (pollRef.current) clearInterval(pollRef.current)
       }
     } catch {
       // keep polling
     }
-  }
+  }, [reference])
 
   useEffect(() => {
-    if (!collectionId) { setStatus('error'); return }
+    if (!reference) { setStatus('error'); return }
 
+    checkStatus()
     // Poll every 2s for up to 20s
     let count = 0
     pollRef.current = window.setInterval(async () => {
@@ -47,14 +62,18 @@ export default function PaymentReturn() {
     }, 2000)
 
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [collectionId])
+  }, [reference, checkStatus])
 
   const handleSync = async () => {
-    if (!paymentId) return
+    if (!reference) return
     setSyncing(true)
     try {
-      await syncPayment(paymentId)
-      await checkStatus()
+      const pay = await syncPublicPayment(reference)
+      if (pay.status === 'paid') {
+        setStatus('paid')
+        sessionStorage.removeItem('acafund_payment_reference')
+        sessionStorage.removeItem('acafund_payment_collection_id')
+      }
     } catch {
       // show current state
     } finally {
@@ -85,12 +104,8 @@ export default function PaymentReturn() {
           <p className="text-[14px] text-on-primary-container/80 mb-8">
             Your dues have been received and recorded. Thank you!
           </p>
-          <Button
-            variant="black"
-            fullWidth
-            onClick={() => navigate(`/collections/${collectionId}`)}
-          >
-            Back to Collection
+          <Button variant="black" fullWidth onClick={goBack}>
+            {collectionId ? 'Back to Collection' : payToken ? 'Back to Payment Page' : 'Done'}
           </Button>
         </div>
       </div>
@@ -107,14 +122,12 @@ export default function PaymentReturn() {
             Your payment is still being processed. If you've completed checkout, it may take a little longer to reflect.
           </p>
           <div className="flex flex-col gap-3">
-            {paymentId ? (
-              <Button variant="primary" fullWidth loading={syncing} onClick={handleSync}>
-                <RefreshCw size={14} />
-                Sync Payment Status
-              </Button>
-            ) : null}
-            <Button variant="white" fullWidth onClick={() => navigate(`/collections/${collectionId}`)}>
-              Back to Collection
+            <Button variant="primary" fullWidth loading={syncing} onClick={handleSync}>
+              <RefreshCw size={14} />
+              Sync Payment Status
+            </Button>
+            <Button variant="white" fullWidth onClick={goBack}>
+              {collectionId ? 'Back to Collection' : 'Back'}
             </Button>
           </div>
         </div>
@@ -130,8 +143,8 @@ export default function PaymentReturn() {
         <p className="text-[14px] text-on-surface-variant mb-8">
           We couldn't verify your payment. Please check with your admin.
         </p>
-        <Button variant="white" fullWidth onClick={() => navigate('/communities')}>
-          Go to My Communities
+        <Button variant="white" fullWidth onClick={goBack}>
+          Go Back
         </Button>
       </div>
     </div>

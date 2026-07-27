@@ -1,43 +1,73 @@
 from datetime import datetime, timezone
+from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import MemberRole
+from app.models.enums import MemberRole, db_enum
 
 
 class Community(Base):
     __tablename__ = "communities"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    description = Column(String)
-    invite_code = Column(String(8), unique=True, nullable=False, index=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    invite_code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
-    # Monnify reserved account
-    reserved_account_reference = Column(String, nullable=True)
-    reserved_account_number = Column(String, nullable=True)
-    reserved_bank_name = Column(String, nullable=True)
-    reserved_account_name = Column(String, nullable=True)
-    reserved_account_status = Column(String, nullable=True)
+    reserved_account_reference: Mapped[Optional[str]] = mapped_column(String(64))
+    reserved_account_number: Mapped[Optional[str]] = mapped_column(String(32))
+    reserved_bank_name: Mapped[Optional[str]] = mapped_column(String(128))
+    reserved_account_name: Mapped[Optional[str]] = mapped_column(String(255))
+    reserved_account_status: Mapped[Optional[str]] = mapped_column(String(16))
 
-    creator = relationship("User", foreign_keys=[created_by])
-    members = relationship("CommunityMember", back_populates="community")
+    members: Mapped[list["Member"]] = relationship(
+        back_populates="community", cascade="all, delete-orphan"
+    )
 
 
-class CommunityMember(Base):
-    __tablename__ = "community_members"
+class Member(Base):
+    """A roster entry in a community.
 
-    id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role = Column(Enum(MemberRole, native_enum=False), nullable=False, default=MemberRole.MEMBER)
-    joined_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    `user_id` is nullable: members added by name exist before (or without)
+    ever creating an account. Claiming links a User to the row. Governance
+    roles are only meaningful on claimed rows.
+    """
 
-    __table_args__ = (UniqueConstraint("community_id", "user_id", name="uq_community_member"),)
+    __tablename__ = "members"
+    __table_args__ = (
+        Index(
+            "uq_members_community_user",
+            "community_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+            sqlite_where=text("user_id IS NOT NULL"),
+        ),
+    )
 
-    community = relationship("Community", back_populates="members")
-    user = relationship("User", back_populates="memberships")
+    id: Mapped[int] = mapped_column(primary_key=True)
+    community_id: Mapped[int] = mapped_column(
+        ForeignKey("communities.id"), index=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), index=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    phone: Mapped[Optional[str]] = mapped_column(String(32))
+    role: Mapped[MemberRole] = mapped_column(
+        db_enum(MemberRole), default=MemberRole.MEMBER
+    )
+    added_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    community: Mapped[Community] = relationship(back_populates="members")
+    user: Mapped[Optional["User"]] = relationship(  # noqa: F821
+        back_populates="memberships", foreign_keys=[user_id]
+    )

@@ -1,6 +1,8 @@
 export type MemberRole = 'admin' | 'treasurer' | 'auditor' | 'member'
 export type CollectionStatus = 'draft' | 'active' | 'closed'
 export type MemberPaymentStatus = 'pending' | 'paid' | 'waived'
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'reversed'
+export type ManualChannel = 'manual_cash' | 'manual_transfer'
 export type ExpenseStatus = 'pending' | 'approved' | 'rejected' | 'paid_out'
 export type LedgerEntryType = 'credit' | 'debit'
 
@@ -31,13 +33,28 @@ export interface Community {
   reserved_account?: ReservedAccount | null
 }
 
+// A roster entry. `user_id` is null until the person claims it with an account.
 export interface CommunityMember {
   id: number
   community_id: number
-  user_id: number
-  role: MemberRole
-  full_name?: string | null
+  user_id: number | null
+  display_name: string
   email?: string | null
+  phone?: string | null
+  role: MemberRole
+  is_claimed: boolean
+}
+
+export interface UnclaimedMember {
+  id: number
+  display_name: string
+}
+
+export interface CommunityLookup {
+  id: number
+  name: string
+  description: string | null
+  unclaimed_members: UnclaimedMember[]
 }
 
 export interface Collection {
@@ -50,6 +67,7 @@ export interface Collection {
   deadline: string | null
   budget_allocation: Record<string, number> | null
   status: CollectionStatus
+  share_token: string
   created_by: number
   created_at: string
 }
@@ -57,14 +75,16 @@ export interface Collection {
 export interface CollectionMemberEntry {
   id: number
   collection_id: number
-  user_id: number
+  member_id: number
+  display_name: string
   amount_due: number
   status: MemberPaymentStatus
   paid_at: string | null
+  note: string | null
 }
 
 export interface CollectionDetail extends Collection {
-  members: CollectionMemberEntry[]
+  entries: CollectionMemberEntry[]
 }
 
 export interface CollectionDashboard {
@@ -125,16 +145,8 @@ export interface Expense {
   paid_out_by: number | null
 }
 
-export interface LedgerEntry {
-  id: number
-  type: LedgerEntryType
-  amount: number
-  description: string | null
-  created_at: string
-}
-
 export interface LedgerResponse {
-  entries: LedgerEntry[]
+  entries: LedgerEntryOut[]
   balance: number
   total: number
 }
@@ -160,6 +172,32 @@ export interface TransparencyReport {
   budget_allocation: Record<string, number> | null
   expenses: TransparencyExpense[]
   reserved_account?: ReservedAccount | null
+}
+
+// ── Public (guest) types ──────────────────────────────────────────────────────
+
+export interface PublicEntry {
+  id: number
+  display_name: string
+  status: MemberPaymentStatus
+}
+
+export interface PublicCollection {
+  id: number
+  title: string
+  description: string | null
+  community_name: string
+  amount_per_member: number
+  deadline: string | null
+  status: CollectionStatus
+  entries: PublicEntry[]
+}
+
+export interface PublicPayment {
+  payment_reference: string
+  status: PaymentStatus
+  amount: number
+  paid_at: string | null
 }
 
 export interface ApiError {

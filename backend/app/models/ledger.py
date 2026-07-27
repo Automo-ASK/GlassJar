@@ -1,20 +1,52 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, JSON, String
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.models.enums import LedgerEntryType
+from app.models.enums import LedgerEntryType, db_enum
 
 
 class LedgerEntry(Base):
-    __tablename__ = "ledger_entries"
+    """Append-only record of money in/out of a community treasury.
 
-    id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.id"), nullable=False, index=True)
-    type = Column(Enum(LedgerEntryType, native_enum=False), nullable=False)
-    amount = Column(Float, nullable=False)
-    reference_type = Column(String, nullable=False)
-    reference_id = Column(Integer, nullable=False)
-    description = Column(String, nullable=True)
-    raw_payload = Column(JSON, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    The unique reference constraint means one source event (a payment, an
+    expense payout, a webhook transfer) can post at most one credit and one
+    debit — double-posting fails at the database, never silently.
+    """
+
+    __tablename__ = "ledger_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "reference_type", "reference_id", "type", name="uq_ledger_reference"
+        ),
+        CheckConstraint("amount >= 0", name="ck_ledger_amount_positive"),
+        # Serves both balance SUMs (community_id prefix) and the
+        # recent-ledger listing without a sort step.
+        Index("ix_ledger_community_created", "community_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    community_id: Mapped[int] = mapped_column(ForeignKey("communities.id"))
+    type: Mapped[LedgerEntryType] = mapped_column(db_enum(LedgerEntryType))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    reference_type: Mapped[str] = mapped_column(String(64))
+    reference_id: Mapped[int] = mapped_column(Integer)
+    description: Mapped[Optional[str]] = mapped_column(Text, default="")
+    raw_payload: Mapped[Optional[dict]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

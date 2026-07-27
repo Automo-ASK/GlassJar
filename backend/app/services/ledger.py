@@ -1,58 +1,43 @@
+from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.models.enums import LedgerEntryType
-from app.models.ledger import LedgerEntry
+from app.core.money import to_money
+from app.models import LedgerEntry, LedgerEntryType
 
 
 def record_credit(
     db: Session,
+    *,
     community_id: int,
-    amount: float,
-    payment_id: int,
-    description: str = "",
-) -> LedgerEntry:
-    entry = LedgerEntry(
-        community_id=community_id,
-        type=LedgerEntryType.CREDIT,
-        amount=amount,
-        reference_type="payment",
-        reference_id=payment_id,
-        description=description,
-    )
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
-    return entry
-
-
-def record_direct_credit(
-    db: Session,
-    community_id: int,
-    amount: float,
+    amount: Decimal,
     reference_type: str,
     reference_id: int,
     description: str = "",
-    raw_payload: dict | None = None,
+    raw_payload: Optional[dict] = None,
 ) -> LedgerEntry:
+    """Stage a credit. No commit here — the calling service commits so the
+    ledger entry is atomic with the state change that caused it."""
     entry = LedgerEntry(
         community_id=community_id,
         type=LedgerEntryType.CREDIT,
-        amount=amount,
+        amount=to_money(amount),
         reference_type=reference_type,
         reference_id=reference_id,
         description=description,
         raw_payload=raw_payload,
     )
     db.add(entry)
-    db.commit()
-    db.refresh(entry)
     return entry
 
 
 def record_debit(
     db: Session,
+    *,
     community_id: int,
-    amount: float,
+    amount: Decimal,
     reference_type: str,
     reference_id: int,
     description: str = "",
@@ -60,27 +45,40 @@ def record_debit(
     entry = LedgerEntry(
         community_id=community_id,
         type=LedgerEntryType.DEBIT,
-        amount=amount,
+        amount=to_money(amount),
         reference_type=reference_type,
         reference_id=reference_id,
         description=description,
     )
     db.add(entry)
-    db.commit()
-    db.refresh(entry)
     return entry
 
 
-def get_balance(db: Session, community_id: int) -> float:
+def get_balance(db: Session, community_id: int) -> Decimal:
+    signed = func.coalesce(
+        func.sum(
+            case(
+                (LedgerEntry.type == LedgerEntryType.CREDIT, LedgerEntry.amount),
+                else_=-LedgerEntry.amount,
+            )
+        ),
+        0,
+    )
+    value = (
+        db.query(signed).filter(LedgerEntry.community_id == community_id).scalar()
+    )
+    return to_money(value or 0)
+
+
+def list_entries(
+    db: Session, community_id: int, skip: int = 0, limit: int = 20
+) -> tuple[list[LedgerEntry], int]:
+    query = db.query(LedgerEntry).filter(LedgerEntry.community_id == community_id)
+    total = query.count()
     entries = (
-        db.query(LedgerEntry)
-        .filter(LedgerEntry.community_id == community_id)
+        query.order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc())
+        .offset(skip)
+        .limit(limit)
         .all()
     )
-    balance = 0.0
-    for entry in entries:
-        if entry.type == LedgerEntryType.CREDIT:
-            balance += entry.amount
-        else:
-            balance -= entry.amount
-    return balance
+    return entries, total

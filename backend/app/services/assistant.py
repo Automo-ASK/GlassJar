@@ -4,10 +4,9 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.collection import Collection, CollectionMember
-from app.models.enums import CollectionStatus, ExpenseStatus, MemberPaymentStatus
-from app.models.expense import Expense
-from app.models.ledger import LedgerEntry
+from app.core.errors import GatewayError
+from app.models import Expense, ExpenseStatus, LedgerEntry
+from app.services.collections import active_collection_summaries
 from app.services.ledger import get_balance
 
 _SYSTEM_PROMPT = """\
@@ -31,32 +30,10 @@ def _build_context(db: Session, community_id: int) -> dict:
         .all()
     )
 
-    active_cols = (
-        db.query(Collection)
-        .filter(
-            Collection.community_id == community_id,
-            Collection.status == CollectionStatus.ACTIVE,
-        )
-        .all()
-    )
-
-    collections_summary = []
-    for col in active_cols:
-        members = (
-            db.query(CollectionMember)
-            .filter(CollectionMember.collection_id == col.id)
-            .all()
-        )
-        paid = [m for m in members if m.status == MemberPaymentStatus.PAID]
-        pending = [m for m in members if m.status == MemberPaymentStatus.PENDING]
-        collections_summary.append({
-            "id": col.id,
-            "title": col.title,
-            "target_amount": col.target_amount,
-            "amount_collected": sum(m.amount_due for m in paid),
-            "paid_count": len(paid),
-            "pending_count": len(pending),
-        })
+    collections_summary = [
+        s.model_dump(mode="json")
+        for s in active_collection_summaries(db, community_id)
+    ]
 
     pending_expenses = (
         db.query(Expense)
@@ -92,6 +69,9 @@ def _build_context(db: Session, community_id: int) -> dict:
 
 
 async def ask_treasury_assistant(db: Session, community_id: int, question: str) -> str:
+    if not settings.nvidia_api_key:
+        raise GatewayError("Treasury assistant is not configured")
+
     context = _build_context(db, community_id)
     user_content = (
         f"Community Treasury Context:\n"
@@ -118,6 +98,6 @@ async def ask_treasury_assistant(db: Session, community_id: int, question: str) 
         )
 
     if resp.status_code != 200:
-        raise ValueError(f"NVIDIA API error {resp.status_code}: {resp.text}")
+        raise GatewayError(f"Assistant API error {resp.status_code}")
 
     return resp.json()["choices"][0]["message"]["content"]
