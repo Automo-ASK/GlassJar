@@ -4,9 +4,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.core.errors import DomainError
+from app.core.rate_limit import limiter
 from app.database import Base, engine
 
 import app.models  # noqa: F401  (register all tables on Base.metadata)
@@ -33,6 +36,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
+
+# Rate limiting: @limiter.limit decorators reference app.state.limiter, and
+# RateLimitExceeded needs a handler to become a 429 instead of a 500.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 

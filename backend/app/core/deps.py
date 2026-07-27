@@ -2,9 +2,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
+from app.core.security import decode_token
 from app.database import get_db
-from app.models import Collection, Expense, Member, MemberRole, User
+from app.models import Collection, Expense, Member, MemberRole, RevokedToken, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -15,13 +15,27 @@ _credentials_exc = HTTPException(
 )
 
 
-def get_current_user(
+def get_token_payload(
     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-) -> User:
-    user_id = decode_access_token(token)
-    if user_id is None:
+) -> dict:
+    """Decode a bearer token and reject it if malformed, expired, or revoked.
+
+    Shared by get_current_user (needs the subject) and /auth/logout (needs the
+    jti + exp to record the revocation)."""
+    payload = decode_token(token)
+    if payload is None:
         raise _credentials_exc
-    user = db.get(User, user_id)
+    if payload.get("sub") is None or payload.get("jti") is None:
+        raise _credentials_exc
+    if db.query(RevokedToken).filter(RevokedToken.jti == payload["jti"]).first():
+        raise _credentials_exc
+    return payload
+
+
+def get_current_user(
+    payload: dict = Depends(get_token_payload), db: Session = Depends(get_db)
+) -> User:
+    user = db.get(User, int(payload["sub"]))
     if user is None:
         raise _credentials_exc
     return user

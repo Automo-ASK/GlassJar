@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_membership
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.models import Member
 from app.schemas.reports import CommunityDashboardOut, TransparencyReportOut
@@ -13,7 +14,10 @@ router = APIRouter(tags=["reports"])
 @router.get(
     "/collections/{collection_id}/transparency", response_model=TransparencyReportOut
 )
-def transparency_report(collection_id: int, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def transparency_report(
+    request: Request, collection_id: int, db: Session = Depends(get_db)
+):
     """Public accountability report — intentionally unauthenticated."""
     return reports_service.transparency_report(db, collection_id)
 

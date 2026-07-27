@@ -13,6 +13,7 @@ from app.models.enums import (
 from app.models.expense import Expense
 from app.models.ledger import LedgerEntry
 from app.models.payment import Payment, WebhookEvent
+from app.models.revoked_token import RevokedToken
 from app.models.user import User
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     "Payment",
     "PaymentChannel",
     "PaymentStatus",
+    "RevokedToken",
     "User",
     "WebhookEvent",
 ]

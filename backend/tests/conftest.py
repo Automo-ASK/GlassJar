@@ -2,6 +2,7 @@ import os
 
 # Test environment must be pinned before app.config is imported; direct env
 # vars outrank the .env file in pydantic-settings priority.
+os.environ["ENV"] = "test"  # disables the rate limiter (see app/core/rate_limit.py)
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SECRET_KEY"] = "test-secret-key-0123456789-0123456789"
 os.environ["MONNIFY_API_KEY"] = "test-api-key"

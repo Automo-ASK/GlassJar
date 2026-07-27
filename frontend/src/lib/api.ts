@@ -28,7 +28,13 @@ export function hasToken(): boolean {
   return Boolean(getToken())
 }
 
-export function logout() {
+export async function logout() {
+  // Best-effort server-side revocation; clear locally regardless of outcome.
+  try {
+    await req<void>('/auth/logout', { method: 'POST' })
+  } catch {
+    // offline or already-invalid token — the local clear below is what matters
+  }
   clearToken()
 }
 

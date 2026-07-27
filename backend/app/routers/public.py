@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.models import CollectionEntry, Member
 from app.schemas.payments import PayInitOut
@@ -48,7 +49,9 @@ def public_collection(share_token: str, db: Session = Depends(get_db)):
     status_code=status.HTTP_201_CREATED,
     response_model=PayInitOut,
 )
+@limiter.limit("10/minute")
 async def guest_pay(
+    request: Request,
     share_token: str,
     entry_id: int,
     body: GuestPayIn,

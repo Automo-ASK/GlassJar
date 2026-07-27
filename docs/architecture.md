@@ -138,9 +138,25 @@ late roster additions.
   not `*`.
 - **Config**: `pydantic-settings`; no secret defaults in code (the v1 hardcoded
   Monnify contract code default is removed).
+- **Auth hardening**: JWTs carry a `jti`; `/auth/logout` records it in
+  `revoked_tokens` and every request checks that table, so tokens can be killed
+  before natural expiry. Ported from the teammate's audit branch.
+- **Rate limiting**: `slowapi` (in-memory) on abuse-prone endpoints — auth
+  register/login (5/min), guest pay (10/min), public transparency (30/min).
+  Disabled under `ENV=test`. Multi-instance deploys need a shared backend
+  (Redis) or each instance enforces its own quota.
 - **Tests**: pytest against SQLite in-memory with the Monnify API mocked via
-  respx; the suite covers auth, roster, collections, payment reconciliation
-  (including idempotency and manual marks), expenses, and reports.
+  respx; the suite covers auth (incl. logout revocation), roster, collections,
+  payment reconciliation (idempotency + manual marks), expenses, and reports.
+
+### Open questions (from the teammate audit — see docs/teammate-audit.md)
+
+- **Monnify → Squad migration**: whether to switch payment gateway. The Monnify
+  integration is isolated in `services/monnify.py` behind one service object, so
+  a swap is contained to that module plus the webhook signature check.
+- **Pulling the database out of the server**: Alembic already decouples schema
+  changes from app redeploys (`alembic upgrade head` is a release step, not a
+  boot step). Managed Postgres (Render) is the intended target.
 
 ## 3. What was deliberately dropped or changed from v1
 
