@@ -149,6 +149,42 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Jar loader. transform-box: fill-box makes percentage transforms resolve
+   against the element's own bounding box rather than the SVG viewport.
+--------------------------------------------------------------------------- */
+.jar-liquid {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jar-fill 2.6s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+}
+
+@keyframes jar-fill {
+  0%   { transform: translateY(100%); }
+  55%  { transform: translateY(0%); }
+  78%  { transform: translateY(0%); }
+  100% { transform: translateY(100%); }
+}
+
+.jar-coin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jar-coin 2.6s cubic-bezier(0.55, 0, 0.85, 0.4) infinite;
+}
+
+@keyframes jar-coin {
+  0%        { transform: translateY(-10px); opacity: 0; }
+  10%       { opacity: 1; }
+  38%       { transform: translateY(34px); opacity: 1; }
+  46%, 100% { transform: translateY(34px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Hold it at a readable half-full instead of animating. */
+  .jar-liquid { animation: none; transform: translateY(45%); }
+  .jar-coin { animation: none; opacity: 0; }
+}
+
+/* ---------------------------------------------------------------------------
    ScrollStack (React Bits) — cards pin and stack on scroll.
    Layout and transforms belong to the component; the look belongs here.
 --------------------------------------------------------------------------- */

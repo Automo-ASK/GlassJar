@@ -23,7 +23,7 @@ export default function EmptyState({ icon: Icon, title, description, action, com
           alt=""
           aria-hidden
           loading="lazy"
-          className="h-32 w-32 object-contain mix-blend-multiply"
+          className="h-32 w-32 object-contain"
         />
       )}
 

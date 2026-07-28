@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useInView } from '../lib/useInView'
+import { jarPath, lidBox, shinePath } from './jar'
 
 /*
  * The hero's centrepiece: the whole mechanic in one moving picture.
@@ -272,12 +273,14 @@ export default function CollectionFlow() {
           </g>
         ))}
 
-        {/* pool */}
+        {/* pool: an actual glass jar, with the contents clipped to its
+            silhouette so the level follows the shoulders and the base */}
         <clipPath id="jarClip">
-          <rect x={L.jar.x + 3} y={L.jar.y + 3} width={L.jar.w - 6} height={L.jar.h - 6} />
+          <path d={jarPath(L.jar)} />
         </clipPath>
 
-        <rect {...L.jar} className="fill-paper-100" stroke="#241E1F" strokeWidth={3} />
+        <path d={jarPath(L.jar)} className="fill-paper-0" />
+
         <g clipPath="url(#jarClip)">
           <rect
             x={L.jar.x}
@@ -296,7 +299,31 @@ export default function CollectionFlow() {
             style={{ transition: 'y 420ms cubic-bezier(0.22,1,0.36,1)' }}
           />
         </g>
-        <rect x={L.jar.x - 10} y={L.jar.y - 12} width={L.jar.w + 20} height={16} className="fill-ink-900" />
+
+        <path
+          d={jarPath(L.jar)}
+          fill="none"
+          stroke="#241E1F"
+          strokeWidth={3}
+          strokeLinejoin="round"
+        />
+        <path d={shinePath(L.jar)} stroke="#FFFFFF" strokeWidth={3} strokeLinecap="round" opacity={0.45} />
+
+        {(() => {
+          const lid = lidBox(L.jar)
+          return (
+            <rect
+              x={lid.x}
+              y={lid.y}
+              width={lid.w}
+              height={lid.h}
+              rx={lid.r}
+              className="fill-teal-400"
+              stroke="#241E1F"
+              strokeWidth={3}
+            />
+          )
+        })()}
 
         <text
           x={L.jar.x + L.jar.w / 2}

@@ -1,3 +1,5 @@
+import JarLoader from '../JarLoader'
+
 export default function LoadingState({ message = 'Loading' }: { message?: string }) {
   return (
     <div
@@ -5,16 +7,7 @@ export default function LoadingState({ message = 'Loading' }: { message?: string
       role="status"
       aria-live="polite"
     >
-      {/* three blocks filling, in the ledger's own rhythm */}
-      <div className="flex gap-1.5" aria-hidden>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="h-3 w-3 border-2 border-ink-900 bg-rose-600 animate-pulse-dot"
-            style={{ animationDelay: `${i * 180}ms` }}
-          />
-        ))}
-      </div>
+      <JarLoader size={72} label={message} />
       <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-500">
         {message}
         <span className="animate-blink">_</span>
