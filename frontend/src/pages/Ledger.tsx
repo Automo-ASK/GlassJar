@@ -56,7 +56,7 @@ export default function Ledger() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[28px] font-bold tracking-tight">Treasury Ledger</h1>
-          <p className="text-[14px] text-on-surface-variant">Read-only — full audit trail</p>
+          <p className="text-[14px] text-on-surface-variant">Read only, full audit trail</p>
         </div>
         <Button variant="white" size="sm" onClick={load}>
           <RefreshCw size={13} /> Refresh

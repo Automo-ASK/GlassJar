@@ -127,7 +127,7 @@ export default function JoinCommunity() {
                     checked={claimId === null}
                     onChange={() => setClaimId(null)}
                   />
-                  I'm not on this list — join as a new member
+                  I'm not on this list. Join as a new member
                 </label>
               </div>
             </div>

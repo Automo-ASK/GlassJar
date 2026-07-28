@@ -1,26 +1,39 @@
 import type { LucideIcon } from 'lucide-react'
+import emptyArt from '../../assets/brand/empty-state.webp'
 
 interface Props {
   icon?: LucideIcon
   title: string
   description?: string
   action?: React.ReactNode
+  /** Swap the illustration for an icon block where space is tight. */
+  compact?: boolean
 }
 
-export default function EmptyState({ icon: Icon, title, description, action }: Props) {
+export default function EmptyState({ icon: Icon, title, description, action, compact }: Props) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-      {Icon && (
-        <div className="w-16 h-16 border-2 border-black bg-surface-container flex items-center justify-center neo-shadow">
-          <Icon size={28} className="text-on-surface-variant" />
+    <div className="flex flex-col items-center justify-center gap-5 border-2 border-dashed border-ink-300 py-14 text-center">
+      {compact && Icon ? (
+        <div className="flex h-14 w-14 items-center justify-center border-2 border-ink-900 bg-gold-400">
+          <Icon size={24} strokeWidth={2} className="text-ink-900" />
         </div>
+      ) : (
+        <img
+          src={emptyArt}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          className="h-32 w-32 object-contain mix-blend-multiply"
+        />
       )}
-      <div>
-        <p className="text-[18px] font-bold">{title}</p>
+
+      <div className="max-w-sm px-6">
+        <p className="font-display text-[17px] uppercase leading-tight">{title}</p>
         {description && (
-          <p className="text-[14px] text-on-surface-variant mt-1 max-w-xs">{description}</p>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-500">{description}</p>
         )}
       </div>
+
       {action}
     </div>
   )

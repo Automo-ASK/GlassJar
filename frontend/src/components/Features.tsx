@@ -1,131 +1,117 @@
-import { useEffect, useRef } from 'react'
-import { CalendarDays, Wallet, CheckSquare, Eye, LineChart, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import ScrollStack, { ScrollStackItem } from './ScrollStack'
+import { useReveal } from '../lib/useReveal'
+import { RosterList, Channels, ReceiptStamp, ApprovalChain, ReportCover } from './FeatureVisuals'
 
 interface Feature {
-  icon: LucideIcon
+  tag: string
   title: string
   desc: string
-  bg: string
-  size: string
-  iconBg: string
-  large: boolean
-  horizontal?: boolean
-  iconWhite?: boolean
+  /* Each card owns a full colour field. The palette is used as blocks. */
+  field: string
+  panel: string
+  visual: ReactNode
 }
 
 const FEATURES: Feature[] = [
   {
-    icon: CalendarDays,
-    title: 'Plan & Vote',
-    desc: 'Propose budgets, vote as a community. Every decision is logged before a naira moves.',
-    bg: 'bg-white',
-    size: 'md:col-span-2',
-    iconBg: 'bg-primary-container',
-    large: true,
+    tag: 'Roster',
+    title: 'Add your class, not their signups',
+    desc: 'Type or upload the class list once. Members never create an account. They open your link, find their name, and pay.',
+    field: 'bg-teal-400 text-ink-900',
+    panel: 'bg-teal-100',
+    visual: <RosterList />,
   },
   {
-    icon: Wallet,
-    title: 'Multi-channel Collection',
-    desc: 'Bank transfer, USSD, or card. Auto-reconciliation — no more matching screenshots to names.',
-    bg: 'bg-secondary-fixed',
-    size: 'md:col-span-2',
-    iconBg: 'bg-white',
-    large: true,
+    tag: 'Collection',
+    title: 'One link for the whole class',
+    desc: 'Share a single payment link on WhatsApp. Transfers, USSD and card all come back confirmed and matched to the right member automatically.',
+    field: 'bg-gold-400 text-ink-900',
+    panel: 'bg-gold-100',
+    visual: <Channels />,
   },
   {
-    icon: CheckSquare,
-    title: 'AI Verify',
-    desc: 'AI-powered receipt verification stops double-accounting in its tracks.',
-    bg: 'bg-tertiary-container',
-    size: 'md:col-span-1',
-    iconBg: 'bg-white',
-    large: false,
+    tag: 'Verification',
+    title: 'No more checking screenshots',
+    desc: 'The payment gateway confirms each transfer server side. Payer, amount and reference are matched for you, so a screenshot proves nothing and nobody has to chase it.',
+    field: 'bg-rose-600 text-white',
+    panel: 'bg-rose-100',
+    visual: <ReceiptStamp />,
   },
   {
-    icon: Eye,
-    title: 'Total Transparency',
-    desc: 'Public dashboard. Real-time balance. Every verified expense in the open.',
-    bg: 'bg-white',
-    size: 'md:col-span-2',
-    iconBg: 'bg-primary',
-    large: true,
-    horizontal: true,
-    iconWhite: true,
+    tag: 'Approval',
+    title: 'Spending needs a second signature',
+    desc: 'The treasurer submits an expense with a receipt. An independent auditor has to approve it before any money leaves the community account.',
+    field: 'bg-paper-0 text-ink-900',
+    panel: 'bg-paper-200',
+    visual: <ApprovalChain />,
   },
   {
-    icon: LineChart,
-    title: 'Report',
-    desc: 'One-click financial reporting for semester hand-overs.',
-    bg: 'bg-secondary-container',
-    size: 'md:col-span-1',
-    iconBg: 'bg-white',
-    large: false,
+    tag: 'Report',
+    title: 'Prove it without being asked',
+    desc: 'Every member can open the transparency report and see what came in, what went out, and who approved it. Handover is a document, not a conversation.',
+    field: 'bg-ink-900 text-paper-100',
+    panel: 'bg-ink-800',
+    visual: <ReportCover />,
   },
 ]
 
 export default function Features() {
-  const ref = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const cards = ref.current?.querySelectorAll('[data-animate]')
-    if (!cards) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            const el = e.target as HTMLElement
-            el.style.opacity = '1'
-            el.style.transform = 'translateY(0)'
-          }
-        })
-      },
-      { threshold: 0.1 },
-    )
-    cards.forEach((c, i) => {
-      const el = c as HTMLElement
-      el.style.opacity = '0'
-      el.style.transform = 'translateY(32px)'
-      el.style.transition = `opacity 0.5s ease ${i * 80}ms, transform 0.5s ease ${i * 80}ms`
-      observer.observe(el)
-    })
-    return () => observer.disconnect()
-  }, [])
+  const headRef = useReveal<HTMLDivElement>({ stagger: 80 })
 
   return (
-    <section ref={ref} id="features" className="px-4 md:px-12 py-20 bg-surface-container-low">
-      <div className="mb-16 text-center">
-        <h2 className="text-[40px] leading-[1.2] tracking-[-0.01em] font-bold">
-          Built for Accountability
+    <section id="features" className="relative border-b-2 border-ink-900 bg-paper-100">
+      <div ref={headRef} className="mx-auto max-w-[1400px] px-4 md:px-8 pt-20 md:pt-28">
+        <p data-reveal className="eyebrow">What you get</p>
+        <h2 data-reveal className="mt-4 max-w-[16ch] text-headline-lg">
+          Five jobs, handled
         </h2>
-        <div className="w-24 h-2 bg-secondary mx-auto mt-4 border-2 border-black" />
+        <p data-reveal className="mt-5 max-w-lg text-body-lg text-ink-600">
+          Everything a class rep currently does by hand, done by the system instead.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {FEATURES.map(({ icon: Icon, title, desc, bg, size, iconBg, large, horizontal, iconWhite }) => (
-          <div
-            key={title}
-            data-animate
-            className={`${size} ${bg} border-4 border-black neo-shadow-lg p-8 group hover:-translate-y-2 transition-transform cursor-default ${
-              horizontal ? 'flex items-center gap-6' : ''
-            }`}
-          >
-            <div
-              className={`${iconBg} border-2 border-black flex items-center justify-center flex-shrink-0 ${
-                large ? 'w-16 h-16' : 'w-12 h-12'
-              } ${horizontal ? '' : large ? 'mb-6' : 'mb-4'}`}
-            >
-              <Icon size={large ? 28 : 20} className={iconWhite ? 'text-white' : ''} />
-            </div>
-            <div>
-              <h3 className={`font-bold ${large ? 'text-[24px] mb-4' : 'text-[18px] mb-2'}`}>
-                {title}
-              </h3>
-              <p className={`text-on-surface-variant leading-relaxed ${large ? 'text-[16px]' : 'text-[14px]'}`}>
-                {desc}
-              </p>
-            </div>
-          </div>
-        ))}
+      <div className="mx-auto max-w-[1180px] px-4 md:px-8">
+        <ScrollStack
+          useWindowScroll
+          itemDistance={110}
+          itemStackDistance={24}
+          itemScale={0.024}
+          baseScale={0.87}
+          stackPosition="16%"
+          scaleEndPosition="7%"
+          blurAmount={0}
+        >
+          {FEATURES.map(({ tag, title, desc, field, panel, visual }) => (
+            <ScrollStackItem key={tag}>
+              <div className={`grid md:grid-cols-[1.05fr_1fr] ${field}`}>
+                <div className="flex flex-col justify-between gap-8 p-7 sm:p-9 md:p-11">
+                  <div className="flex items-center gap-3">
+                    <span className="border-2 border-current px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em]">
+                      {tag}
+                    </span>
+                    <span className="h-px flex-1 bg-current opacity-25" />
+                  </div>
+
+                  <div>
+                    <h3 className="max-w-[15ch] text-[clamp(1.6rem,3.2vw,2.6rem)] leading-[0.95]">
+                      {title}
+                    </h3>
+                    <p className="mt-4 max-w-[46ch] text-[15px] leading-relaxed opacity-80">
+                      {desc}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={`border-t-2 border-ink-900 p-7 sm:p-9 md:border-l-2 md:border-t-0 md:p-10 ${panel} text-ink-900`}
+                >
+                  {visual}
+                </div>
+              </div>
+            </ScrollStackItem>
+          ))}
+        </ScrollStack>
       </div>
     </section>
   )

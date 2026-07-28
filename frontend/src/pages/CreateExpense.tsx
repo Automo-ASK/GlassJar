@@ -106,7 +106,7 @@ export default function CreateExpense() {
       <div className="mb-8">
         <h1 className="text-[28px] font-bold tracking-tight">Pay for Something</h1>
         <p className="text-[14px] text-on-surface-variant mt-1">
-          Admin or treasurer only — the transfer goes out as soon as you confirm.
+          Admin or treasurer only. The transfer goes out as soon as you confirm.
         </p>
       </div>
 
@@ -172,7 +172,7 @@ export default function CreateExpense() {
             )}
           </div>
 
-          <Input id="receipt" label="Receipt URL (optional — will be stored in your drive)" type="url"
+          <Input id="receipt" label="Receipt URL (optional, stored in your drive)" type="url"
             placeholder="Paste Google Drive link..."
             value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} />
 

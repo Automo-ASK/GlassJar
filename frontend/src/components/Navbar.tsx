@@ -1,103 +1,124 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Logo from './Logo'
 
+const NAV_LINKS = [
+  { label: 'Features', href: '#features' },
+  { label: 'How it works', href: '#dashboard' },
+  { label: 'Start', href: '#about' },
+]
+
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const NAV_LINKS = ['Features', 'Dashboard', 'About']
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
-    <nav className="sticky top-0 z-50 flex justify-between items-center px-4 md:px-12 py-4 bg-surface border-b-4 border-black">
-      <div className="flex items-center gap-8">
-        <button onClick={() => navigate('/')} className="hover:opacity-80 transition-opacity">
+    <nav
+      className={`sticky top-0 z-50 border-b-2 border-ink-900 bg-paper-100 transition-shadow duration-200 ${
+        scrolled ? 'shadow-neo-sm' : ''
+      }`}
+    >
+      <div className="mx-auto flex h-[64px] max-w-[1400px] items-center justify-between px-4 md:px-8">
+        <button onClick={() => navigate('/')} aria-label="AcaFund home" className="shrink-0">
           <Logo size="md" />
         </button>
-        <div className="hidden md:flex gap-6">
-          {NAV_LINKS.map((item) => (
+
+        <div className="hidden items-center gap-8 md:flex">
+          {NAV_LINKS.map(({ label, href }) => (
             <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              className="text-[14px] font-bold tracking-[0.05em] uppercase text-on-surface-variant hover:text-primary transition-colors"
+              key={label}
+              href={href}
+              className="flex min-h-[44px] items-center font-mono text-[12px] uppercase tracking-[0.14em] text-ink-600 transition-colors duration-150 hover:text-rose-600"
             >
-              {item}
+              {label}
             </a>
           ))}
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-        {user ? (
-          <button
-            onClick={() => navigate('/communities')}
-            className="bg-primary-container text-on-primary-container border-2 border-black neo-shadow neo-btn px-5 py-2 text-[14px] font-bold tracking-[0.05em] uppercase hidden sm:block"
-          >
-            Dashboard →
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={() => navigate('/login')}
-              className="text-[14px] font-bold tracking-[0.05em] uppercase text-on-surface-variant hover:text-primary transition-colors px-3 py-2 hidden sm:block"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-primary-container text-on-primary-container border-2 border-black neo-shadow neo-btn px-5 py-2 text-[14px] font-bold tracking-[0.05em] uppercase hidden sm:block"
-            >
-              Get Started
-            </button>
-          </>
-        )}
-        <button
-          className="md:hidden text-on-surface p-2"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
-        >
-          {menuOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
-      </div>
-
-      {menuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-surface border-b-4 border-black flex flex-col p-4 gap-2 md:hidden z-50">
-          {NAV_LINKS.map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              className="text-[14px] font-bold tracking-[0.05em] uppercase text-on-surface-variant hover:text-primary transition-colors py-2 border-b border-outline-variant"
-              onClick={() => setMenuOpen(false)}
-            >
-              {item}
-            </a>
-          ))}
+        <div className="flex items-center gap-2">
           {user ? (
             <button
-              onClick={() => { setMenuOpen(false); navigate('/communities') }}
-              className="mt-2 bg-primary-container text-on-primary-container border-2 border-black neo-shadow neo-btn py-2 text-[14px] font-bold tracking-[0.05em] uppercase"
+              onClick={() => navigate('/communities')}
+              className="hidden border-2 border-ink-900 bg-rose-600 px-5 py-2 font-display text-[13px] uppercase text-white shadow-neo-sm transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo sm:block"
             >
-              Dashboard →
+              Dashboard
             </button>
           ) : (
             <>
               <button
-                onClick={() => { setMenuOpen(false); navigate('/login') }}
-                className="mt-2 bg-white border-2 border-black neo-shadow neo-btn py-2 text-[14px] font-bold tracking-[0.05em] uppercase"
+                onClick={() => navigate('/login')}
+                className="hidden min-h-[44px] px-3 font-mono text-[12px] uppercase tracking-[0.14em] text-ink-600 transition-colors duration-150 hover:text-rose-600 sm:block"
               >
-                Sign In
+                Sign in
               </button>
               <button
-                onClick={() => { setMenuOpen(false); navigate('/register') }}
-                className="bg-primary-container text-on-primary-container border-2 border-black neo-shadow neo-btn py-2 text-[14px] font-bold tracking-[0.05em] uppercase"
+                onClick={() => navigate('/register')}
+                className="hidden border-2 border-ink-900 bg-rose-600 px-5 py-2 font-display text-[13px] uppercase text-white shadow-neo-sm transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo sm:block"
               >
-                Get Started
+                Start
               </button>
             </>
           )}
+
+          <button
+            className="flex h-11 w-11 items-center justify-center border-2 border-ink-900 text-ink-900 transition-colors duration-150 hover:bg-ink-900 hover:text-paper-100 md:hidden"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+      </div>
+
+      {menuOpen && (
+        <div className="absolute inset-x-0 top-full border-b-2 border-ink-900 bg-paper-100 md:hidden">
+          {NAV_LINKS.map(({ label, href }) => (
+            <a
+              key={label}
+              href={href}
+              onClick={() => setMenuOpen(false)}
+              className="block border-t border-ink-100 px-4 py-3.5 font-mono text-[13px] uppercase tracking-[0.14em]"
+            >
+              {label}
+            </a>
+          ))}
+          <div className="flex gap-2 border-t-2 border-ink-900 p-4">
+            {user ? (
+              <button
+                onClick={() => { setMenuOpen(false); navigate('/communities') }}
+                className="flex-1 border-2 border-ink-900 bg-rose-600 py-3 font-display text-[13px] uppercase text-white shadow-neo-sm"
+              >
+                Dashboard
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => { setMenuOpen(false); navigate('/login') }}
+                  className="flex-1 border-2 border-ink-900 bg-paper-0 py-3 font-display text-[13px] uppercase shadow-neo-sm"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); navigate('/register') }}
+                  className="flex-1 border-2 border-ink-900 bg-rose-600 py-3 font-display text-[13px] uppercase text-white shadow-neo-sm"
+                >
+                  Start
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </nav>

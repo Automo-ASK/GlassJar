@@ -9,53 +9,49 @@ export default function FAB() {
 
   const match = pathname.match(/^\/communities\/(\d+)/)
   const communityId = match ? match[1] : null
-
   if (!communityId) return null
 
   const QUICK_ACTIONS = [
-    {
-      icon: Wallet,
-      label: 'New Collection',
-      onClick: () => navigate(`/communities/${communityId}/collections/create`),
-    },
-    {
-      icon: ReceiptText,
-      label: 'New Expense',
-      onClick: () => navigate(`/communities/${communityId}/expenses/create`),
-    },
-    {
-      icon: UserPlus,
-      label: 'Members',
-      onClick: () => navigate(`/communities/${communityId}/members`),
-    },
+    { icon: Wallet, label: 'New collection', to: `/communities/${communityId}/collections/create` },
+    { icon: ReceiptText, label: 'New expense', to: `/communities/${communityId}/expenses/create` },
+    { icon: UserPlus, label: 'Members', to: `/communities/${communityId}/members` },
   ]
 
   return (
-    <div className="fixed bottom-8 right-8 z-50 flex flex-col-reverse items-end gap-3">
-      {open &&
-        QUICK_ACTIONS.map(({ icon: Icon, label, onClick }) => (
-          <div key={label} className="flex items-center gap-3 group">
-            <span className="bg-black text-white text-[11px] font-bold tracking-wide uppercase px-3 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap neo-shadow-sm">
-              {label}
-            </span>
-            <button
-              onClick={() => { setOpen(false); onClick() }}
-              className="w-12 h-12 bg-white border-4 border-black neo-shadow flex items-center justify-center hover:bg-primary-container transition-colors"
-            >
-              <Icon size={18} />
-            </button>
-          </div>
-        ))}
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-ink-900/25 animate-fade-in"
+          onClick={() => setOpen(false)}
+          aria-hidden
+        />
+      )}
 
-      <button
-        onClick={() => setOpen(!open)}
-        className={`w-16 h-16 bg-primary text-white border-4 border-black neo-shadow-lg flex items-center justify-center transition-all duration-200 ${
-          open ? 'rotate-45 scale-110' : 'hover:scale-110 active:scale-95'
-        }`}
-        aria-label="Quick actions"
-      >
-        <Plus size={28} />
-      </button>
-    </div>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse items-end gap-2">
+        {open &&
+          QUICK_ACTIONS.map(({ icon: Icon, label, to }, i) => (
+            <button
+              key={label}
+              onClick={() => { setOpen(false); navigate(to) }}
+              style={{ animationDelay: `${i * 45}ms` }}
+              className="flex animate-fade-up items-center gap-2.5 border-2 border-ink-900 bg-paper-0 px-4 py-2.5 font-mono text-[12px] uppercase tracking-[0.1em] shadow-neo transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-gold-400"
+            >
+              <Icon size={14} />
+              {label}
+            </button>
+          ))}
+
+        <button
+          onClick={() => setOpen(!open)}
+          className={`flex h-14 w-14 items-center justify-center border-2 border-ink-900 bg-rose-600 text-white shadow-neo transition-all duration-200 ${
+            open ? 'rotate-45' : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo-lg'
+          }`}
+          aria-label="Quick actions"
+          aria-expanded={open}
+        >
+          <Plus size={24} strokeWidth={2.5} />
+        </button>
+      </div>
+    </>
   )
 }

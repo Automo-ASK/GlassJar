@@ -182,10 +182,10 @@ export default function CollectionDetail() {
       {isManager && collection.status === 'active' && (
         <div className="border-2 border-black bg-secondary-fixed p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Payment Link — share with your class</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Payment link: share with your class</p>
             <p className="text-[13px] font-bold truncate">{payLink}</p>
             <p className="text-[11px] text-on-surface-variant mt-0.5">
-              Anyone with the link can pay directly — no account or sign-up needed.
+              Anyone with the link can pay directly. No account or sign-up needed.
             </p>
           </div>
           <Button variant="black" size="sm" onClick={() => copyLink('paylink', payLink)}>
@@ -217,7 +217,7 @@ export default function CollectionDetail() {
         <div className="border-2 border-primary bg-primary-container/30 p-4 flex items-center gap-3">
           <CheckCircle size={20} className="text-primary" />
           <p className="text-[14px] font-bold text-primary">
-            You've paid {fmt(myPayment.amount_due)} — thank you!
+            You've paid {fmt(myPayment.amount_due)}. Thank you!
           </p>
         </div>
       )}

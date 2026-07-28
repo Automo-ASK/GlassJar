@@ -171,7 +171,7 @@ export default function Members() {
               />
               <Input
                 id="add-email"
-                label="Email (optional — lets them claim their spot)"
+                label="Email (optional, lets them claim their spot)"
                 placeholder="ada@example.com"
                 value={addEmail}
                 onChange={(e) => setAddEmail(e.target.value)}
@@ -189,7 +189,7 @@ export default function Members() {
             </Button>
           </div>
           <p className="text-[12px] text-on-surface-variant">
-            Members added by name don't need an account — they can pay as guests
+            Members added by name don't need an account. They can pay as guests
             from the collection link and claim their spot later with the invite code.
           </p>
         </form>

@@ -11,7 +11,7 @@ function fmt(n: number) {
   return `₦${n.toLocaleString('en-NG')}`
 }
 
-/** Public payment page: open the shared link, pay. Anyone can pay — no
+/** Public payment page: open the shared link, pay. Anyone can pay, no
  *  account, no roster match, no picking a name off a list. */
 export default function PublicPay() {
   const { shareToken } = useParams<{ shareToken: string }>()
@@ -101,13 +101,13 @@ export default function PublicPay() {
             </Button>
             <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 justify-center">
               <ShieldCheck size={12} className="text-primary" />
-              Secured by Monnify — verified automatically, no screenshots needed.
+              Secured by Monnify. Verified automatically, no screenshots needed.
             </p>
           </div>
         )}
 
         <p className="text-center text-[12px] text-on-surface-variant">
-          Powered by AcaFund — transparent community money for students.
+          Powered by AcaFund. Transparent community money for students.
         </p>
       </div>
     </div>

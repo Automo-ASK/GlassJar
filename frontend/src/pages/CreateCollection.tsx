@@ -132,7 +132,7 @@ export default function CreateCollection() {
     <div className="max-w-xl mx-auto">
       <div className="mb-8">
         <h1 className="text-[28px] font-bold tracking-tight">New Collection</h1>
-        <p className="text-[14px] text-on-surface-variant mt-1">Admin only — members will be enrolled automatically.</p>
+        <p className="text-[14px] text-on-surface-variant mt-1">Admin only. Members will be enrolled automatically.</p>
       </div>
 
       {error && (

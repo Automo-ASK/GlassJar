@@ -214,7 +214,7 @@ export default function ExpenseApproval() {
       {/* Still sending */}
       {expense.status === 'pending' && (
         <p className="text-[13px] text-on-surface-variant text-center">
-          Transfer in progress — refresh in a moment.
+          Transfer in progress. Refresh in a moment.
         </p>
       )}
 

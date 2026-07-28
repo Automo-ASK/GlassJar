@@ -1,37 +1,71 @@
+import markUrl from '../assets/brand/logo-mark.webp'
+
 interface Props {
   size?: 'sm' | 'md' | 'lg'
   variant?: 'default' | 'white'
+  markOnly?: boolean
 }
 
-export default function Logo({ size = 'md', variant = 'default' }: Props) {
-  const sizes = {
-    sm:  { box: 'w-6 h-6 text-[11px]',  word: 'text-[15px]', gap: 'gap-1.5' },
-    md:  { box: 'w-8 h-8 text-[14px]',  word: 'text-[20px]', gap: 'gap-2' },
-    lg:  { box: 'w-10 h-10 text-[17px]', word: 'text-[26px]', gap: 'gap-2.5' },
-  }
-  const s = sizes[size]
-  const isWhite = variant === 'white'
+const SIZES = {
+  sm: { mark: 26, word: 'text-[16px]', gap: 'gap-2' },
+  md: { mark: 32, word: 'text-[20px]', gap: 'gap-2.5' },
+  lg: { mark: 42, word: 'text-[26px]', gap: 'gap-3' },
+}
+
+/**
+ * The mark is a jar with a visible fill level: a shared pot you can see into.
+ *
+ * Its outline is near-black, so on dark surfaces it sits on a paper plate
+ * rather than disappearing. That reads as a printed sticker, which suits the
+ * rest of the system.
+ */
+export function LogoMark({
+  size = 32,
+  variant = 'default',
+}: {
+  size?: number
+  variant?: 'default' | 'white'
+}) {
+  const img = (
+    <img
+      src={markUrl}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      className="block"
+      style={{ width: size, height: size }}
+    />
+  )
+
+  if (variant !== 'white') return img
 
   return (
-    <div className={`flex items-center ${s.gap} select-none`}>
-      {/* logomark: bold "A" in a green-bordered square */}
-      <div
-        className={`${s.box} flex-shrink-0 border-2 flex items-center justify-center font-black leading-none ${
-          isWhite
-            ? 'bg-white border-white text-black'
-            : 'bg-primary border-black text-white'
-        }`}
-      >
-        A
-      </div>
-      {/* wordmark */}
+    <span
+      className="inline-flex items-center justify-center border-2 border-ink-900 bg-paper-100"
+      style={{ padding: Math.round(size * 0.11) }}
+    >
+      {img}
+    </span>
+  )
+}
+
+export default function Logo({ size = 'md', variant = 'default', markOnly = false }: Props) {
+  const s = SIZES[size]
+  const isWhite = variant === 'white'
+
+  if (markOnly) return <LogoMark size={s.mark} variant={variant} />
+
+  return (
+    <span className={`inline-flex items-center ${s.gap} select-none`}>
+      <LogoMark size={s.mark} variant={variant} />
       <span
-        className={`font-bold tracking-tight leading-none ${s.word} ${
-          isWhite ? 'text-white' : 'text-on-surface'
+        className={`font-display uppercase leading-none tracking-[-0.04em] ${s.word} ${
+          isWhite ? 'text-paper-100' : 'text-ink-900'
         }`}
       >
-        Aca<span className={isWhite ? 'text-primary-container' : 'text-primary'}>Fund</span>
+        Aca<span className="text-rose-600">Fund</span>
       </span>
-    </div>
+    </span>
   )
 }

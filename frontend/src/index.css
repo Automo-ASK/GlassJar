@@ -3,39 +3,192 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    font-family: 'Space Grotesk', sans-serif;
-    @apply bg-surface text-on-surface;
+  :root { color-scheme: light; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
+  body {
+    @apply bg-background text-on-surface font-sans;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* Paper tooth. Keeps the flat colour blocks from looking like plastic. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    background-image: theme('backgroundImage.grain');
+    opacity: 0.055;
+    mix-blend-mode: multiply;
+  }
+
+  h1, h2, h3 {
+    @apply font-display uppercase;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
+  p { text-wrap: pretty; }
+
+  /* Ledger figures must never jitter as they tick. */
+  .tabular,
+  [data-money] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  ::selection {
+    background: theme('colors.rose.600');
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.rose.600');
+    outline-offset: 3px;
+  }
+
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: theme('colors.paper.200'); }
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.ink.600');
+    border: 3px solid theme('colors.paper.200');
+  }
+  ::-webkit-scrollbar-thumb:hover { background: theme('colors.rose.600'); }
+}
+
+@layer components {
+  /* One card recipe: hard rule, solid offset shadow, square. */
+  .card {
+    @apply bg-surface-container-lowest border-2 border-ink-900 shadow-neo;
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-200 ease-soft;
+  }
+  .card-interactive:hover {
+    @apply shadow-neo-lg -translate-x-0.5 -translate-y-0.5;
+  }
+
+  /* Mono metadata label. Used for every eyebrow, status and ref on the site. */
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-on-surface-variant;
+  }
+
+  .rule { @apply h-0.5 w-full bg-ink-900; }
+
+  /* Structural backdrop: a visible measuring grid, not decoration. */
+  .grid-lines {
+    background-image:
+      linear-gradient(to right, theme('colors.ink.900') 1px, transparent 1px),
+      linear-gradient(to bottom, theme('colors.ink.900') 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* Column rules behind the ledger. */
+  .rule-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 43px,
+      theme('colors.ink.100') 43px,
+      theme('colors.ink.100') 44px
+    );
+  }
 }
 
 @layer utilities {
-  .neo-shadow {
-    box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  /* --- legacy shims ------------------------------------------------------
+     These names are used across ~36 app screens. Re-pointed rather than
+     renamed so every screen inherits the raw treatment. */
+  .neo-shadow    { @apply shadow-neo; }
+  .neo-shadow-lg { @apply shadow-neo-lg; }
+  .neo-shadow-sm { @apply shadow-neo-sm; }
+
+  .neo-btn, .neo-btn-lg { @apply transition-all duration-150 ease-soft; }
+  .neo-btn:hover, .neo-btn-lg:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 0 theme('colors.ink.900');
   }
-  .neo-shadow-lg {
-    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+  .neo-btn:active, .neo-btn-lg:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 0 theme('colors.ink.900');
   }
-  .neo-shadow-sm {
-    box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1);
+  /* --------------------------------------------------------------------- */
+
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
   }
-  .neo-btn {
-    @apply transition-all duration-150;
+  [data-reveal].is-revealed { opacity: 1; transform: none; }
+
+  /* Headline lines rise out of a clipped box on load. */
+  .line-mask { overflow: hidden; display: block; }
+
+  /* Hard colour inversion on hover — the raw alternative to a soft lift. */
+  .invert-hover {
+    @apply transition-colors duration-150;
   }
-  .neo-btn:hover {
-    transform: translate(2px, 2px);
-    box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1);
+  .invert-hover:hover {
+    @apply bg-ink-900 text-paper-100;
   }
-  .neo-btn:active {
-    transform: translate(4px, 4px);
-    box-shadow: none;
+
+  .mask-fade-x {
+    mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
   }
-  .neo-btn-lg {
-    @apply transition-all duration-150;
+}
+
+/* ---------------------------------------------------------------------------
+   ScrollStack (React Bits) — cards pin and stack on scroll.
+   Layout and transforms belong to the component; the look belongs here.
+--------------------------------------------------------------------------- */
+.scroll-stack-scroller {
+  position: relative;
+  width: 100%;
+  overscroll-behavior: contain;
+}
+.scroll-stack-scroller.is-window { height: auto; overflow: visible; }
+
+.scroll-stack-inner { padding: 4vh 0 14rem; }
+
+.scroll-stack-card {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  transform-origin: top center;
+  will-change: transform, filter;
+  backface-visibility: hidden;
+  overflow: hidden;
+  border: 2px solid theme('colors.ink.900');
+  box-shadow: 7px 7px 0 0 theme('colors.ink.900');
+}
+
+.scroll-stack-end { width: 100%; height: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
-  .neo-btn-lg:hover {
-    transform: translate(4px, 4px);
-    box-shadow: none;
+  [data-reveal] { opacity: 1 !important; transform: none !important; }
+
+  /* Stacking is transform-driven; fall back to a plain list. */
+  .scroll-stack-card {
+    transform: none !important;
+    filter: none !important;
+    margin-bottom: 1.5rem !important;
   }
+  .scroll-stack-inner { padding-bottom: 2rem; }
 }

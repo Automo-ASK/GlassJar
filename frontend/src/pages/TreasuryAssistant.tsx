@@ -80,7 +80,7 @@ export default function TreasuryAssistant() {
             </div>
             <div className="text-center">
               <p className="text-[16px] font-bold mb-1">Ask your treasury anything</p>
-              <p className="text-[13px] text-on-surface-variant">Powered by AI — answers are based on your community data.</p>
+              <p className="text-[13px] text-on-surface-variant">Powered by AI. Answers are based on your community data.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
               {STARTERS.map((s) => (

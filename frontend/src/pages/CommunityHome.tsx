@@ -223,7 +223,7 @@ export default function CommunityHome() {
           { label: 'Members', value: members.length, icon: Users, color: 'bg-primary-container' },
           { label: 'Active Collections', value: activeCollections.length, icon: Wallet, color: 'bg-secondary-fixed' },
           { label: 'Total Collections', value: collections.length, icon: TrendingUp, color: 'bg-tertiary-container' },
-          { label: 'Your Role', value: myRole?.toUpperCase() ?? '—', icon: Users, color: 'bg-surface-container' },
+          { label: 'Your Role', value: myRole?.toUpperCase() ?? 'None', icon: Users, color: 'bg-surface-container' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className={`${color} border-2 border-black neo-shadow p-4`}>
             <Icon size={18} className="mb-2 text-on-surface-variant" />
