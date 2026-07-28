@@ -107,7 +107,7 @@ export default function PublicPay() {
         )}
 
         <p className="text-center text-[12px] text-on-surface-variant">
-          Powered by AcaFund. Transparent community money for students.
+          Powered by GlassJar. Transparent community money for students.
         </p>
       </div>
     </div>

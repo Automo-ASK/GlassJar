@@ -67,7 +67,7 @@ export default function Hero() {
               className="mt-8 max-w-md text-body-lg text-ink-600 animate-fade-up"
               style={{ animationDelay: '520ms' }}
             >
-              AcaFund collects your class money through one payment link, confirms every transfer
+              GlassJar collects your class money through one payment link, confirms every transfer
               automatically, and shows the whole community the same ledger. Members pay without
               creating an account.
             </p>
