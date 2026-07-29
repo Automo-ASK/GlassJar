@@ -1,0 +1,45 @@
+    v4 APIs support two environments: Test mode (sandbox) and Production (live).
+
+Test Environment
+
+In our test environment, all data is mocked, and transactions are stored separately from those in production. No transaction processing actually occurs, so that you can test with real user data during your integration.
+
+    🚧
+
+    Data Retention Limit
+
+    We archive your test data after 30 days. Once test data is archived, it can't be accessed again.
+
+
+Making Test Requests
+
+To make requests in the test environment, set.https://developersandbox-api.flutterwave.com as your base URL for your requests.
+
+curl --location 'https://developersandbox-api.flutterwave.com/customers?page=1' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--header 'Content-Type: application/json'
+
+
+Retrieve Test API Credentials
+
+    Log in to your developer account to access your test credentials.
+    Copy your API credentials from the main dashboard.
+
+Production Environment
+
+To connect to our production environment, use https://f4bexperience.flutterwave.com/ as the base URL.
+
+curl --location 'https://f4bexperience.flutterwave.com/customers?page=1' \
+--header 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+--header 'Content-Type: application/json'
+
+
+Retrieving Production Credentials
+
+    Log in to your Flutterwave account and navigate to settings.
+    Select the API Keys option from your settings.
+    Depending on whether you are on v3 or v4, perform one of the following
+        If you are on v3, i.e. the visible fields are Public Key, Private Key and Encryption Key, click the Switch to v4 live API keys to see v4 API credentials.
+        If you are on v4, no action is required at this stage.
+    Copy your API credentials.
+

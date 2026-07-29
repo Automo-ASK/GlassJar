@@ -50,6 +50,7 @@ class Expense(Base):
     destination_account_number: Mapped[Optional[str]] = mapped_column(String(32))
     destination_account_name: Mapped[Optional[str]] = mapped_column(String(255))
     payout_reference: Mapped[Optional[str]] = mapped_column(String(128))
+    flw_transfer_id: Mapped[Optional[str]] = mapped_column(String(64))
     payout_error: Mapped[Optional[str]] = mapped_column(Text)
     raw_payout_payload: Mapped[Optional[dict]] = mapped_column(JSON)
     manual_payout: Mapped[bool] = mapped_column(Boolean, default=False)

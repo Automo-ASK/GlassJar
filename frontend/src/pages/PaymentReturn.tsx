@@ -1,17 +1,24 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Copy, Check, Building2, RefreshCw } from 'lucide-react'
 import Button from '../components/ui/Button'
-import { getPublicPayment, syncPublicPayment, submitPaymentForm } from '../lib/api'
-import type { CustomFieldDef } from '../lib/types'
+import { getPublicPayment, submitPaymentForm } from '../lib/api'
+import type { CustomFieldDef, PublicPayment } from '../lib/types'
+
+function fmt(n: number) {
+  return `₦${n.toLocaleString('en-NG')}`
+}
+
+const POLL_INTERVAL_MS = 5000
+const POLL_ATTEMPTS_BEFORE_PENDING_MESSAGE = 24 // ~2 minutes
+const POLL_ATTEMPTS_MAX = 360 // ~30 minutes, matching bank-transfer expectations
+
+type Phase = 'loading' | 'transfer' | 'form' | 'confirming' | 'paid' | 'pending' | 'error'
 
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  // Monnify can corrupt query params on redirect — sessionStorage is the
-  // reliable source. Works for both logged-in members and guests because the
-  // status endpoints are public, keyed by payment reference.
   const reference =
     searchParams.get('paymentReference') ??
     sessionStorage.getItem('acafund_payment_reference') ??
@@ -22,13 +29,17 @@ export default function PaymentReturn() {
   const payToken =
     searchParams.get('pay_token') ?? sessionStorage.getItem('acafund_pay_token') ?? ''
 
-  const [phase, setPhase] = useState<'loading' | 'form' | 'confirming' | 'paid' | 'pending' | 'error'>('loading')
+  const [phase, setPhase] = useState<Phase>('loading')
+  const [payment, setPayment] = useState<PublicPayment | null>(null)
   const [fields, setFields] = useState<CustomFieldDef[]>([])
   const [values, setValues] = useState<Record<string, string | boolean>>({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [checkingNow, setCheckingNow] = useState(false)
+  const [hasCheckedOnce, setHasCheckedOnce] = useState(false)
   const pollRef = useRef<number | null>(null)
+  const attemptsRef = useRef(0)
 
   const goBack = () => {
     if (collectionId) navigate(`/collections/${collectionId}`)
@@ -36,33 +47,44 @@ export default function PaymentReturn() {
     else navigate('/')
   }
 
+  const handleConfirmed = useCallback((pay: PublicPayment) => {
+    setPayment(pay)
+    if (pollRef.current) clearInterval(pollRef.current)
+    sessionStorage.removeItem('acafund_payment_reference')
+    sessionStorage.removeItem('acafund_payment_collection_id')
+    if (pay.custom_fields && pay.custom_fields.length > 0 && !pay.form_submitted) {
+      setFields(pay.custom_fields)
+      setPhase('form')
+    } else {
+      setPhase('paid')
+    }
+  }, [])
+
   const checkStatus = useCallback(async () => {
-    if (!reference) { setPhase('error'); return }
+    if (!reference) return
     try {
       const pay = await getPublicPayment(reference)
+      setPayment(pay)
       if (pay.status === 'paid') {
-        setPhase('paid')
-        sessionStorage.removeItem('acafund_payment_reference')
-        sessionStorage.removeItem('acafund_payment_collection_id')
-        if (pollRef.current) clearInterval(pollRef.current)
+        handleConfirmed(pay)
       }
     } catch {
       // keep polling
     }
-  }, [reference])
+  }, [reference, handleConfirmed])
 
   const startPolling = useCallback(() => {
-    setPhase((prev) => (prev === 'paid' ? prev : 'confirming'))
-    checkStatus()
-    let count = 0
+    attemptsRef.current = 0
     pollRef.current = window.setInterval(async () => {
-      count++
+      attemptsRef.current += 1
       await checkStatus()
-      if (count >= 10) {
-        if (pollRef.current) clearInterval(pollRef.current)
-        setPhase((prev) => (prev === 'confirming' ? 'pending' : prev))
+      if (attemptsRef.current === POLL_ATTEMPTS_BEFORE_PENDING_MESSAGE) {
+        setPhase((prev) => (prev === 'transfer' || prev === 'confirming' ? 'pending' : prev))
       }
-    }, 2000)
+      if (attemptsRef.current >= POLL_ATTEMPTS_MAX && pollRef.current) {
+        clearInterval(pollRef.current)
+      }
+    }, POLL_INTERVAL_MS)
   }, [checkStatus])
 
   useEffect(() => {
@@ -73,18 +95,18 @@ export default function PaymentReturn() {
       try {
         const pay = await getPublicPayment(reference)
         if (cancelled) return
-        if (pay.custom_fields && pay.custom_fields.length > 0 && !pay.form_submitted) {
-          setFields(pay.custom_fields)
-          setPhase('form')
-        } else if (pay.status === 'paid') {
-          setPhase('paid')
-          sessionStorage.removeItem('acafund_payment_reference')
-          sessionStorage.removeItem('acafund_payment_collection_id')
+        setPayment(pay)
+        if (pay.status === 'paid') {
+          handleConfirmed(pay)
+        } else if (pay.va_account_number) {
+          setPhase('transfer')
+          startPolling()
         } else {
+          setPhase('confirming')
           startPolling()
         }
       } catch {
-        if (!cancelled) startPolling()
+        if (!cancelled) { setPhase('confirming'); startPolling() }
       }
     })()
 
@@ -92,7 +114,21 @@ export default function PaymentReturn() {
       cancelled = true
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [reference, startPolling])
+  }, [reference, startPolling, handleConfirmed])
+
+  const handleCheckNow = async () => {
+    setCheckingNow(true)
+    setHasCheckedOnce(true)
+    await checkStatus()
+    setCheckingNow(false)
+  }
+
+  const copyAccountNumber = () => {
+    if (!payment?.va_account_number) return
+    navigator.clipboard.writeText(payment.va_account_number)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const updateValue = (key: string, value: string | boolean) =>
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -101,7 +137,7 @@ export default function PaymentReturn() {
     setFormError('')
     for (const field of fields) {
       const v = values[field.key]
-      if (field.required && (v === undefined || v === '' || v === false && field.type === 'checkbox')) {
+      if (field.required && (v === undefined || v === '' || (v === false && field.type === 'checkbox'))) {
         setFormError(`${field.label} is required`)
         return
       }
@@ -109,28 +145,11 @@ export default function PaymentReturn() {
     setSubmitting(true)
     try {
       await submitPaymentForm(reference, values)
-      startPolling()
+      setPhase('paid')
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : 'Could not submit form')
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleSync = async () => {
-    if (!reference) return
-    setSyncing(true)
-    try {
-      const pay = await syncPublicPayment(reference)
-      if (pay.status === 'paid') {
-        setPhase('paid')
-        sessionStorage.removeItem('acafund_payment_reference')
-        sessionStorage.removeItem('acafund_payment_collection_id')
-      }
-    } catch {
-      // show current state
-    } finally {
-      setSyncing(false)
     }
   }
 
@@ -142,13 +161,77 @@ export default function PaymentReturn() {
     )
   }
 
+  if (phase === 'transfer' || phase === 'pending') {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-10">
+        <div className="border-4 border-black neo-shadow-lg bg-white p-8 max-w-sm w-full">
+          <div className="text-center mb-6">
+            <Building2 size={32} className="mx-auto mb-3 text-primary" />
+            <h1 className="text-[22px] font-bold mb-1">Transfer to Confirm Payment</h1>
+            <p className="text-[13px] text-on-surface-variant">
+              {phase === 'pending'
+                ? "Still waiting on your transfer. If you've already sent it, this can take a few minutes to reflect — you can leave this page open or come back later."
+                : 'Send exactly this amount to the account below. We’ll confirm automatically the moment it lands — no need to upload a screenshot.'}
+            </p>
+          </div>
+          {payment && (
+            <div className="border-2 border-black bg-surface-container p-4 flex flex-col gap-3 mb-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Amount</p>
+                <p className="text-[20px] font-bold text-primary">
+                  {fmt(payment.va_amount ?? payment.amount)}
+                </p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Send this exact amount — a different amount will be rejected by the bank.
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">Bank</p>
+                <p className="text-[15px] font-bold">{payment.va_bank_name}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant mb-1">Account Number</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[18px] font-bold tracking-[0.08em]">{payment.va_account_number}</p>
+                  <button
+                    onClick={copyAccountNumber}
+                    className="border-2 border-black p-1.5 neo-shadow-sm neo-btn bg-white flex-shrink-0"
+                    aria-label="Copy account number"
+                  >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            {hasCheckedOnce ? (
+              <div className="flex items-center justify-center gap-2 border-2 border-black bg-surface-container py-2.5 text-[13px] font-bold">
+                <RefreshCw size={14} className="animate-spin" />
+                Checking automatically…
+              </div>
+            ) : (
+              <Button variant="primary" fullWidth loading={checkingNow} onClick={handleCheckNow}>
+                <RefreshCw size={14} />
+                I've Paid — Check Now
+              </Button>
+            )}
+            <Button variant="white" fullWidth onClick={goBack}>
+              {collectionId ? 'Back to Collection' : 'Back'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (phase === 'form') {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 py-10">
         <div className="border-4 border-black neo-shadow-lg bg-white p-8 max-w-sm w-full">
           <h1 className="text-[22px] font-bold mb-1">Almost done!</h1>
           <p className="text-[14px] text-on-surface-variant mb-6">
-            Your payment went through. Just a couple of details before we confirm it.
+            Your payment is confirmed. Just a couple of details to wrap up.
           </p>
           <div className="flex flex-col gap-4">
             {fields.map((field) => (
@@ -207,7 +290,7 @@ export default function PaymentReturn() {
           <div className="w-14 h-14 border-4 border-black border-t-primary rounded-full animate-spin mx-auto mb-6" />
           <h1 className="text-[22px] font-bold mb-2">Confirming Payment</h1>
           <p className="text-[14px] text-on-surface-variant">
-            We're verifying your payment with the bank. This usually takes a few seconds…
+            We're verifying your payment. This usually takes a few seconds…
           </p>
         </div>
       </div>
@@ -226,29 +309,6 @@ export default function PaymentReturn() {
           <Button variant="black" fullWidth onClick={goBack}>
             {collectionId ? 'Back to Collection' : payToken ? 'Back to Payment Page' : 'Done'}
           </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (phase === 'pending') {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="border-4 border-black neo-shadow-lg bg-white p-10 max-w-sm w-full text-center">
-          <AlertTriangle size={40} className="mx-auto mb-4 text-error" />
-          <h1 className="text-[22px] font-bold mb-2">Still Processing</h1>
-          <p className="text-[14px] text-on-surface-variant mb-8">
-            Your payment is still being processed. If you've completed checkout, it may take a little longer to reflect.
-          </p>
-          <div className="flex flex-col gap-3">
-            <Button variant="primary" fullWidth loading={syncing} onClick={handleSync}>
-              <RefreshCw size={14} />
-              Sync Payment Status
-            </Button>
-            <Button variant="white" fullWidth onClick={goBack}>
-              {collectionId ? 'Back to Collection' : 'Back'}
-            </Button>
-          </div>
         </div>
       </div>
     )

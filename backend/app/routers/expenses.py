@@ -12,7 +12,6 @@ from app.schemas.expenses import (
     LedgerEntryOut,
     LedgerResponse,
     ManualPayoutIn,
-    OtpIn,
 )
 from app.services import expenses as expenses_service
 from app.services import ledger as ledger_service
@@ -54,27 +53,6 @@ async def retry_expense_payout(
     expense, membership = context
     assert_role(membership, MANAGERS)
     return await expenses_service.retry_payout(db, membership, expense)
-
-
-@router.post("/expenses/{expense_id}/authorize-payout", response_model=ExpenseOut)
-async def authorize_expense_payout(
-    body: OtpIn,
-    context=Depends(get_expense_context),
-    db: Session = Depends(get_db),
-):
-    expense, membership = context
-    assert_role(membership, MANAGERS)
-    return await expenses_service.authorize_payout(db, membership, expense, body.otp)
-
-
-@router.post("/expenses/{expense_id}/resend-otp", status_code=status.HTTP_204_NO_CONTENT)
-async def resend_expense_otp(
-    context=Depends(get_expense_context),
-    db: Session = Depends(get_db),
-):
-    expense, membership = context
-    assert_role(membership, MANAGERS)
-    await expenses_service.resend_payout_otp(db, expense)
 
 
 @router.post("/expenses/{expense_id}/mark-paid-manually", response_model=ExpenseOut)

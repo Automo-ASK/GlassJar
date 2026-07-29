@@ -53,8 +53,11 @@ async def public_pay(
         db, collection, body.redirect_url, body.payer_email
     )
     return PayInitOut(
-        checkout_url=payment.checkout_url,
         payment_reference=payment.payment_reference,
+        va_account_number=payment.va_account_number,
+        va_bank_name=payment.va_bank_name,
+        va_expires_at=payment.va_expires_at,
+        va_amount=payment.va_amount,
     )
 
 
@@ -67,6 +70,10 @@ def _public_payment_out(db: Session, payment) -> PublicPaymentOut:
         paid_at=payment.paid_at,
         custom_fields=collection.custom_fields if collection else None,
         form_submitted=payment.form_submitted_at is not None,
+        va_account_number=payment.va_account_number,
+        va_bank_name=payment.va_bank_name,
+        va_expires_at=payment.va_expires_at,
+        va_amount=payment.va_amount,
     )
 
 

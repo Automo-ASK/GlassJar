@@ -4,7 +4,7 @@ import type {
   CommunityDashboard, Expense, LedgerResponse, TransparencyReport,
   MemberRole, ManualChannel, ActiveCollectionSummary, ReservedAccount,
   PublicCollection, PublicPayment, CustomFieldDef, CollectionResponses,
-  Bank, AccountLookup,
+  Bank, PayInitResponse, AccountLookup,
 } from './types'
 
 const BASE_URL =
@@ -274,7 +274,7 @@ export async function revertEntry(collectionId: number, entryId: number, note?: 
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 
-export async function initiatePayment(collectionId: number): Promise<{ checkout_url: string; payment_reference: string }> {
+export async function initiatePayment(collectionId: number): Promise<PayInitResponse> {
   const redirect_url = `${window.location.origin}/payment-return?collection_id=${collectionId}`
   return req(`/collections/${collectionId}/pay`, {
     method: 'POST', body: JSON.stringify({ redirect_url }),
@@ -289,7 +289,7 @@ export async function getPublicCollection(shareToken: string): Promise<PublicCol
 
 export async function publicPay(
   shareToken: string, payerEmail?: string,
-): Promise<{ checkout_url: string; payment_reference: string }> {
+): Promise<PayInitResponse> {
   const redirect_url = `${window.location.origin}/payment-return?pay_token=${shareToken}`
   return req(`/public/collections/${shareToken}/pay`, {
     method: 'POST',
@@ -349,16 +349,6 @@ export async function createExpense(
 
 export async function retryExpensePayout(expenseId: number): Promise<Expense> {
   return req<Expense>(`/expenses/${expenseId}/retry-payout`, { method: 'POST' })
-}
-
-export async function authorizeExpensePayout(expenseId: number, otp: string): Promise<Expense> {
-  return req<Expense>(`/expenses/${expenseId}/authorize-payout`, {
-    method: 'POST', body: JSON.stringify({ otp }),
-  })
-}
-
-export async function resendExpenseOtp(expenseId: number): Promise<void> {
-  return req<void>(`/expenses/${expenseId}/resend-otp`, { method: 'POST' })
 }
 
 export async function markExpensePaidManually(expenseId: number, payout_reference: string): Promise<Expense> {

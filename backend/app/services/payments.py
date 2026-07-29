@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -20,7 +19,6 @@ from app.models import (
     Collection,
     CollectionEntry,
     CollectionStatus,
-    Community,
     EntryStatus,
     Member,
     Payment,
@@ -30,8 +28,8 @@ from app.models import (
     WebhookEvent,
 )
 from app.schemas.payments import ManualMarkIn
-from app.services import audit, ledger
-from app.services.monnify import MonnifyError, monnify_service
+from app.services import audit, expenses as expenses_service, ledger
+from app.services.flutterwave import FlutterwaveError, flutterwave_service
 
 
 def _now() -> datetime:
@@ -80,42 +78,30 @@ def submit_payment_form(
 
 
 # ── Checkout initiation ───────────────────────────────────────────────────────
+#
+# Collection is via a Flutterwave dynamic virtual account: the payer transfers
+# directly to a one-time account/bank number instead of being redirected to a
+# hosted checkout page. `charge.completed` webhook confirms it, keyed by our
+# payment_reference. No BVN, no card fields collected by us.
 
-async def _initiate_checkout(
+async def _create_virtual_account_payment(
     db: Session,
     *,
     collection: Collection,
-    entry: CollectionEntry,
-    customer_name: str,
+    amount: Decimal,
+    reference: str,
     customer_email: str,
-    redirect_url: str,
-    payer_email: Optional[str] = None,
+    customer_name: str,
+    payer_email: Optional[str],
+    entry: Optional[CollectionEntry] = None,
 ) -> Payment:
-    if collection.status != CollectionStatus.ACTIVE:
-        raise InvalidInputError("Collection is not active")
-    if entry.status != EntryStatus.PENDING:
-        raise InvalidInputError("No pending amount due")
-
-    # Reuse an in-flight checkout instead of stacking duplicates.
-    existing = (
-        db.query(Payment)
-        .filter(
-            Payment.entry_id == entry.id,
-            Payment.status == PaymentStatus.PENDING,
-            Payment.channel == PaymentChannel.CHECKOUT,
-        )
-        .first()
-    )
-    if existing and existing.checkout_url:
-        return existing
-
     payment = Payment(
         collection_id=collection.id,
-        entry_id=entry.id,
-        member_id=entry.member_id,
-        amount=entry.amount_due,
+        entry_id=entry.id if entry else None,
+        member_id=entry.member_id if entry else None,
+        amount=amount,
         channel=PaymentChannel.CHECKOUT,
-        payment_reference=f"acafund-{collection.id}-{entry.id}-{uuid4().hex[:8]}",
+        payment_reference=reference,
         status=PaymentStatus.PENDING,
         payer_email=payer_email,
     )
@@ -123,20 +109,29 @@ async def _initiate_checkout(
     db.flush()
 
     try:
-        result = await monnify_service.init_transaction(
-            amount=entry.amount_due,
-            customer_name=customer_name,
-            customer_email=customer_email,
-            payment_reference=payment.payment_reference,
-            description=f"Payment for {collection.title}",
-            redirect_url=redirect_url,
+        customer = await flutterwave_service.create_customer(customer_email, customer_name)
+        account = await flutterwave_service.create_virtual_account(
+            reference=payment.payment_reference,
+            amount=amount,
+            customer_id=customer["id"],
+            narration=f"{collection.title} - {customer_name}",
         )
-    except MonnifyError as e:
+    except FlutterwaveError as e:
         db.rollback()
         raise GatewayError(f"Payment gateway error: {e.message}")
 
-    payment.checkout_url = result["checkoutUrl"]
-    payment.monnify_transaction_reference = result.get("transactionReference")
+    payment.flw_customer_id = customer["id"]
+    payment.flw_virtual_account_id = account.get("id")
+    payment.va_account_number = account.get("account_number")
+    payment.va_bank_name = account.get("account_bank_name")
+    va_amount = account.get("amount")
+    payment.va_amount = Decimal(str(va_amount)) if va_amount is not None else amount
+    expiry_iso = account.get("account_expiration_datetime")
+    if expiry_iso:
+        try:
+            payment.va_expires_at = datetime.fromisoformat(expiry_iso.replace("Z", "+00:00"))
+        except ValueError:
+            pass
     db.commit()
     db.refresh(payment)
     return payment
@@ -165,13 +160,32 @@ async def member_pay(
     )
     if entry is None:
         raise ForbiddenError("Not enrolled in this collection")
-    return await _initiate_checkout(
+    if collection.status != CollectionStatus.ACTIVE:
+        raise InvalidInputError("Collection is not active")
+    if entry.status != EntryStatus.PENDING:
+        raise InvalidInputError("No pending amount due")
+
+    existing = (
+        db.query(Payment)
+        .filter(
+            Payment.entry_id == entry.id,
+            Payment.status == PaymentStatus.PENDING,
+            Payment.channel == PaymentChannel.CHECKOUT,
+        )
+        .first()
+    )
+    if existing and existing.va_account_number:
+        return existing
+
+    return await _create_virtual_account_payment(
         db,
         collection=collection,
-        entry=entry,
-        customer_name=user.full_name,
+        amount=entry.amount_due,
+        reference=f"acafund-{collection.id}-{entry.id}-{uuid4().hex[:8]}",
         customer_email=user.email,
-        redirect_url=redirect_url,
+        customer_name=user.full_name,
+        payer_email=user.email,
+        entry=entry,
     )
 
 
@@ -187,35 +201,15 @@ async def public_pay(
         raise InvalidInputError("Collection is not active")
 
     email = payer_email or f"guest-{uuid4().hex[:8]}@acafund.app"
-    payment = Payment(
-        collection_id=collection.id,
+    return await _create_virtual_account_payment(
+        db,
+        collection=collection,
         amount=collection.amount_per_member,
-        channel=PaymentChannel.CHECKOUT,
-        payment_reference=f"acafund-{collection.id}-guest-{uuid4().hex[:8]}",
-        status=PaymentStatus.PENDING,
+        reference=f"acafund-{collection.id}-guest-{uuid4().hex[:8]}",
+        customer_email=email,
+        customer_name="Guest",
         payer_email=payer_email,
     )
-    db.add(payment)
-    db.flush()
-
-    try:
-        result = await monnify_service.init_transaction(
-            amount=collection.amount_per_member,
-            customer_name="Guest",
-            customer_email=email,
-            payment_reference=payment.payment_reference,
-            description=f"Payment for {collection.title}",
-            redirect_url=redirect_url,
-        )
-    except MonnifyError as e:
-        db.rollback()
-        raise GatewayError(f"Payment gateway error: {e.message}")
-
-    payment.checkout_url = result["checkoutUrl"]
-    payment.monnify_transaction_reference = result.get("transactionReference")
-    db.commit()
-    db.refresh(payment)
-    return payment
 
 
 def total_collected(db: Session, collection_id: int) -> Decimal:
@@ -259,49 +253,47 @@ def _apply_paid(db: Session, payment_id: int, verification: dict) -> bool:
     return True
 
 
-async def _verify_with_gateway(payment: Payment) -> tuple[bool, dict]:
-    verification = await monnify_service.verify_transaction(payment.payment_reference)
-    status_str = verification.get("paymentStatus", "")
-    amount_paid = Decimal(str(verification.get("amountPaid", 0)))
-    ok = status_str in ("PAID", "OVERPAID") and amount_paid >= payment.amount
-    return ok, verification
-
-
 async def sync_payment(db: Session, payment: Payment) -> str:
-    """Verify a payment against Monnify and reconcile if it settled."""
+    """Re-check a payment's status.
+
+    Flutterwave's virtual-account flow doesn't expose a "verify this
+    reference against the gateway right now" endpoint the way Monnify did —
+    confirmation is webhook-driven only (`charge.completed`). This is a
+    best-effort no-op that just re-reads our own record; it exists so the
+    frontend's "sync" retry button still has something to call, but it can't
+    manufacture a confirmation the webhook hasn't delivered yet.
+    """
     if payment.status == PaymentStatus.PAID:
         return "already_paid"
-    try:
-        ok, verification = await _verify_with_gateway(payment)
-    except MonnifyError as e:
-        raise GatewayError(f"Monnify error: {e.message}")
-    if not ok:
-        return "not_paid"
-    _apply_paid(db, payment.id, verification)
-    db.commit()
-    return "reconciled"
+    return "not_paid"
 
 
 async def handle_webhook(db: Session, payload: dict, raw_body: bytes) -> str:
-    """Process one Monnify webhook delivery exactly once.
+    """Process one Flutterwave webhook delivery exactly once.
 
-    The WebhookEvent row, the payment transition, and the ledger credit all
-    land in a single transaction; a concurrent duplicate delivery loses on the
-    unique event key and rolls back cleanly.
+    The WebhookEvent row and whatever state change it causes land in a
+    single transaction; a concurrent duplicate delivery loses on the unique
+    event key and rolls back cleanly.
     """
-    event_data = payload.get("eventData", payload)
-    tx_ref = event_data.get("transactionReference") or payload.get(
-        "transactionReference"
+    event_type = payload.get("type", "")
+    data = payload.get("data", {}) or {}
+    event_key = (
+        data.get("id") or payload.get("webhook_id") or f"unkeyed-{uuid4().hex}"
     )
-    event_key = tx_ref or hashlib.sha256(raw_body).hexdigest()
 
     if db.query(WebhookEvent).filter(WebhookEvent.event_key == event_key).first():
         return "duplicate"
 
-    event = WebhookEvent(event_key=event_key, payload=payload)
+    event = WebhookEvent(provider="flutterwave", event_key=event_key, payload=payload)
     db.add(event)
 
-    outcome = await _process_webhook_payload(db, payload, event_data, event)
+    if event_type == "charge.completed":
+        outcome = _process_charge_completed(db, data)
+    elif event_type in ("transfer.disburse", "transfer.reversal"):
+        outcome = expenses_service.process_transfer_webhook(db, data)
+    else:
+        outcome = "ignored"
+
     event.outcome = outcome
     try:
         db.commit()
@@ -311,57 +303,28 @@ async def handle_webhook(db: Session, payload: dict, raw_body: bytes) -> str:
     return outcome
 
 
-async def _process_webhook_payload(
-    db: Session, payload: dict, event_data: dict, event: WebhookEvent
-) -> str:
-    payment_reference = event_data.get("paymentReference") or payload.get(
-        "paymentReference"
+def _process_charge_completed(db: Session, data: dict) -> str:
+    reference = data.get("reference")
+    if not reference:
+        return "ignored"
+    payment = (
+        db.query(Payment).filter(Payment.payment_reference == reference).first()
     )
-    if payment_reference:
-        payment = (
-            db.query(Payment)
-            .filter(Payment.payment_reference == payment_reference)
-            .first()
-        )
-        if payment:
-            if payment.status == PaymentStatus.PAID:
-                return "already_paid"
-            try:
-                ok, verification = await _verify_with_gateway(payment)
-            except MonnifyError:
-                return "verification_failed"
-            if not ok:
-                return "not_paid"
-            _apply_paid(db, payment.id, verification)
-            return "ok"
+    if payment is None:
+        return "ignored"
+    if payment.status == PaymentStatus.PAID:
+        return "already_paid"
 
-    # No matching Payment row — check for reserved-account direct transfer.
-    product = event_data.get("product", payload.get("product", {})) or {}
-    account_reference = product.get("reference", "")
-    amount_paid = Decimal(
-        str(event_data.get("amountPaid") or payload.get("amountPaid") or 0)
-    )
+    status = str(data.get("status", "")).lower()
+    if status not in ("succeeded", "success"):
+        return "not_paid"
 
-    if account_reference.startswith("acafund-comm-") and amount_paid > 0:
-        community = (
-            db.query(Community)
-            .filter(Community.reserved_account_reference == account_reference)
-            .first()
-        )
-        if community:
-            db.flush()  # assign event.id for the ledger reference
-            ledger.record_credit(
-                db,
-                community_id=community.id,
-                amount=amount_paid,
-                reference_type="reserved_account_transfer",
-                reference_id=event.id,
-                description=f"Direct transfer via reserved account ({account_reference})",
-                raw_payload=payload,
-            )
-            return "reserved_account_credit_recorded"
+    amount_paid = Decimal(str(data.get("amount", 0)))
+    if amount_paid < payment.amount:
+        return "underpaid"
 
-    return "ignored"
+    _apply_paid(db, payment.id, data)
+    return "ok"
 
 
 # ── Manual actions ────────────────────────────────────────────────────────────

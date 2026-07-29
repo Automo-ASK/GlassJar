@@ -236,7 +236,7 @@ export default function CommunityHome() {
       {/* Quick nav */}
       <div>
         <h2 className="text-[14px] font-bold uppercase tracking-[0.08em] text-on-surface-variant mb-4">Navigate</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { icon: Users, label: 'Members', to: `/communities/${communityId}/members` },
             { icon: Wallet, label: 'Collections', to: `/communities/${communityId}/collections` },

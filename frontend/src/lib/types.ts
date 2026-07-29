@@ -208,6 +208,23 @@ export interface PublicPayment {
   paid_at: string | null
   custom_fields: CustomFieldDef[] | null
   form_submitted: boolean
+  va_account_number: string | null
+  va_bank_name: string | null
+  va_expires_at: string | null
+  // The exact amount to transfer — may differ from `amount` due to gateway
+  // fees; sending anything else can get silently bounced by the bank.
+  va_amount: number | null
+}
+
+// Response from initiating a payment — transfer-to-this-account
+// instructions, not a hosted checkout redirect.
+export interface PayInitResponse {
+  payment_reference: string
+  checkout_url?: string | null
+  va_account_number: string | null
+  va_bank_name: string | null
+  va_expires_at: string | null
+  va_amount: number | null
 }
 
 export interface FormResponse {

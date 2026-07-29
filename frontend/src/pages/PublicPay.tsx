@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import Button from '../components/ui/Button'
 import LoadingState from '../components/ui/LoadingState'
@@ -15,6 +15,7 @@ function fmt(n: number) {
  *  account, no roster match, no picking a name off a list. */
 export default function PublicPay() {
   const { shareToken } = useParams<{ shareToken: string }>()
+  const navigate = useNavigate()
 
   const [collection, setCollection] = useState<PublicCollection | null>(null)
   const [loading, setLoading] = useState(true)
@@ -43,10 +44,12 @@ export default function PublicPay() {
     setPaying(true)
     setPayError('')
     try {
-      const { checkout_url, payment_reference } = await publicPay(shareToken, email.trim() || undefined)
+      const { payment_reference } = await publicPay(shareToken, email.trim() || undefined)
       sessionStorage.setItem('acafund_payment_reference', payment_reference)
       sessionStorage.setItem('acafund_pay_token', shareToken)
-      window.location.href = checkout_url
+      navigate(
+        `/payment-return?paymentReference=${encodeURIComponent(payment_reference)}&pay_token=${encodeURIComponent(shareToken)}`
+      )
     } catch (e: unknown) {
       setPayError(e instanceof Error ? e.message : 'Could not start payment')
       setPaying(false)
@@ -101,7 +104,7 @@ export default function PublicPay() {
             </Button>
             <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5 justify-center">
               <ShieldCheck size={12} className="text-primary" />
-              Secured by Monnify. Verified automatically, no screenshots needed.
+              You'll get a dedicated account number to transfer to — verified automatically, no screenshots needed.
             </p>
           </div>
         )}

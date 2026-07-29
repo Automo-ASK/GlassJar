@@ -48,15 +48,17 @@ export default function CollectionDetail() {
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const col = await getCollection(collectionId)
-      const [anon, pay] = await Promise.all([
+      // getCollectionResponses/getMyPayment don't depend on the collection
+      // response, so fire them alongside it instead of waiting on it first —
+      // only the members fetch genuinely needs community_id from the result.
+      const [col, anon, pay] = await Promise.all([
+        getCollection(collectionId),
         getCollectionResponses(collectionId).catch(() => null),
         getMyPayment(collectionId).catch(() => null),
       ])
       setCollection(col)
       setAnonPayments(anon)
       setMyPayment(pay)
-      // fetch community members to determine role
       const mems = await getMembers(col.community_id).catch(() => [])
       setCommunityMembers(mems)
     } catch (e: unknown) {
@@ -69,10 +71,12 @@ export default function CollectionDetail() {
   const handlePay = async () => {
     setActionError(''); setPaying(true)
     try {
-      const { checkout_url, payment_reference } = await initiatePayment(collectionId)
+      const { payment_reference } = await initiatePayment(collectionId)
       sessionStorage.setItem('acafund_payment_collection_id', String(collectionId))
       sessionStorage.setItem('acafund_payment_reference', payment_reference)
-      window.location.href = checkout_url
+      navigate(
+        `/payment-return?paymentReference=${encodeURIComponent(payment_reference)}&collection_id=${collectionId}`
+      )
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : 'Payment initiation failed')
       setPaying(false)

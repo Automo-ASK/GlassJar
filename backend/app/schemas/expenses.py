@@ -42,10 +42,6 @@ class ExpenseOut(ORMModel):
     paid_out_by: Optional[int] = None
 
 
-class OtpIn(BaseModel):
-    otp: str = Field(min_length=1, max_length=32)
-
-
 class ManualPayoutIn(BaseModel):
     payout_reference: str = Field(min_length=1, max_length=128)
 

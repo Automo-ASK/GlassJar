@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
@@ -32,6 +32,13 @@ class CollectionCreateIn(BaseModel):
     deadline: Optional[datetime] = None
     budget_allocation: Optional[dict[str, float]] = None
     custom_fields: Optional[list[CustomFieldDef]] = None
+
+    @field_validator("deadline")
+    @classmethod
+    def deadline_not_in_past(cls, v):
+        if v is not None and v.date() < datetime.now(timezone.utc).date():
+            raise ValueError("deadline cannot be in the past")
+        return v
 
     @field_validator("budget_allocation")
     @classmethod

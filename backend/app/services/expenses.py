@@ -1,34 +1,25 @@
-import json
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, GatewayError, InvalidInputError, NotFoundError
+from app.core.errors import ConflictError, InvalidInputError, NotFoundError
 from app.core.money import to_money
 from app.models import Expense, ExpenseStatus, Member
 from app.schemas.expenses import ExpenseCreateIn
 from app.services import audit, ledger
-from app.services.monnify import MonnifyError, monnify_service
+from app.services.flutterwave import FlutterwaveError, flutterwave_service
 
 SUCCESS_STATUSES = {"SUCCESS", "SUCCESSFUL", "COMPLETED"}
+# Flutterwave transfers start here and only reach a terminal state once the
+# transfer.disburse webhook arrives — there's no synchronous OTP step here
+# the way Monnify had.
+IN_FLIGHT_STATUSES = {"NEW", "PENDING", "PROCESSING"}
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _friendly_monnify_error(raw_text: str) -> str:
-    """Monnify error bodies are JSON with a responseMessage — surface that
-    instead of a raw HTTP body dump when we can parse it."""
-    try:
-        body = json.loads(raw_text)
-    except (ValueError, TypeError):
-        return raw_text[:300]
-    if isinstance(body, dict) and body.get("responseMessage"):
-        return str(body["responseMessage"])
-    return raw_text[:300]
 
 
 def get_expense(db: Session, expense_id: int) -> Expense:
@@ -46,11 +37,11 @@ def _check_balance(db: Session, expense: Expense) -> None:
         )
 
 
-def _complete_payout(db: Session, actor: Member, expense: Expense, reference: str) -> None:
+def _complete_payout(db: Session, actor_user_id: int, expense: Expense, reference: str) -> None:
     expense.status = ExpenseStatus.PAID_OUT
     expense.payout_reference = reference
     expense.paid_out_at = _now()
-    expense.paid_out_by = actor.user_id
+    expense.paid_out_by = actor_user_id
     ledger.record_debit(
         db,
         community_id=expense.community_id,
@@ -62,7 +53,7 @@ def _complete_payout(db: Session, actor: Member, expense: Expense, reference: st
     audit.log(
         db,
         community_id=expense.community_id,
-        actor_user_id=actor.user_id,
+        actor_user_id=actor_user_id,
         action="expense_paid_out",
         entity_type="expense",
         entity_id=expense.id,
@@ -71,52 +62,46 @@ def _complete_payout(db: Session, actor: Member, expense: Expense, reference: st
 
 
 async def _attempt_disbursement(db: Session, actor: Member, expense: Expense) -> Expense:
-    """Fire a Monnify disbursement for a PENDING or FAILED expense. Always
-    leaves the expense in a terminal-for-now state: PAID_OUT, AWAITING_OTP,
-    or FAILED — never raises, so create-and-pay never blocks on a gateway
-    hiccup once the expense itself is safely recorded."""
+    """Fire a Flutterwave transfer for a PENDING or FAILED expense. Leaves
+    the expense PENDING (awaiting the transfer.disburse webhook) on a normal
+    in-flight response, or FAILED if the gateway rejects it outright —
+    create-and-pay never blocks on a gateway hiccup once the expense itself
+    is safely recorded."""
     reference = f"acafund-exp-{expense.id}-{uuid4().hex[:8]}"
     narration = expense.title[:100]
     try:
-        result = await monnify_service.disburse_single(
+        result = await flutterwave_service.initiate_transfer(
             amount=expense.amount,
             reference=reference,
             narration=narration,
-            destination_bank_code=expense.destination_bank_code,
-            destination_account_number=expense.destination_account_number,
-            destination_account_name=expense.destination_account_name,
+            bank_code=expense.destination_bank_code,
+            account_number=expense.destination_account_number,
         )
-    except MonnifyError as e:
+    except FlutterwaveError as e:
         expense.status = ExpenseStatus.FAILED
         expense.payout_reference = reference
-        expense.payout_error = _friendly_monnify_error(e.message)
+        expense.payout_error = e.message[:300]
         expense.raw_payout_payload = {"error": e.message}
         db.commit()
         db.refresh(expense)
         return expense
 
-    monnify_status = result.get("status")
+    flw_status = str(result.get("status", "")).upper()
     expense.payout_reference = result.get("reference") or reference
+    expense.flw_transfer_id = result.get("id")
     expense.raw_payout_payload = result
 
-    if monnify_status in SUCCESS_STATUSES:
+    if flw_status in SUCCESS_STATUSES:
         expense.payout_error = None
-        _complete_payout(db, actor, expense, expense.payout_reference)
-    elif monnify_status == "PENDING_AUTHORIZATION":
-        expense.status = ExpenseStatus.AWAITING_OTP
+        _complete_payout(db, actor.user_id, expense, expense.payout_reference)
+    elif flw_status in IN_FLIGHT_STATUSES:
+        expense.status = ExpenseStatus.PENDING
         expense.payout_error = None
-        audit.log(
-            db,
-            community_id=expense.community_id,
-            actor_user_id=actor.user_id,
-            action="expense_payout_awaiting_otp",
-            entity_type="expense",
-            entity_id=expense.id,
-        )
     else:
         expense.status = ExpenseStatus.FAILED
+        provider_message = result.get("provider_response", {}).get("message")
         expense.payout_error = (
-            result.get("responseMessage") or f"Unexpected status from Monnify: {monnify_status or 'unknown'}"
+            provider_message or f"Unexpected status from Flutterwave: {flw_status or 'unknown'}"
         )
 
     db.commit()
@@ -171,39 +156,44 @@ async def retry_payout(db: Session, actor: Member, expense: Expense) -> Expense:
     return await _attempt_disbursement(db, actor, expense)
 
 
-async def authorize_payout(db: Session, actor: Member, expense: Expense, otp: str) -> Expense:
-    if expense.status != ExpenseStatus.AWAITING_OTP:
-        raise ConflictError("This expense is not awaiting an authorization code")
-    try:
-        result = await monnify_service.authorize_transfer(expense.payout_reference, otp)
-    except MonnifyError as e:
-        raise GatewayError(f"Could not authorize transfer: {e.message}")
+def process_transfer_webhook(db: Session, data: dict) -> str:
+    """Handle a `transfer.disburse` / `transfer.reversal` webhook — the only
+    way a Flutterwave payout reaches a terminal state after initiation."""
+    reference = data.get("reference")
+    if not reference:
+        return "ignored"
+    expense = (
+        db.query(Expense).filter(Expense.payout_reference == reference).first()
+    )
+    if expense is None:
+        return "ignored"
+    if expense.status == ExpenseStatus.PAID_OUT:
+        return "already_paid"
 
-    monnify_status = result.get("status")
-    if monnify_status not in SUCCESS_STATUSES:
-        raise InvalidInputError(
-            f"Authorization was not accepted (status: {monnify_status or 'unknown'})"
+    flw_status = str(data.get("status", "")).upper()
+    expense.raw_payout_payload = data
+    expense.flw_transfer_id = data.get("id") or expense.flw_transfer_id
+
+    if flw_status in SUCCESS_STATUSES:
+        expense.payout_error = None
+        _complete_payout(db, expense.requested_by, expense, reference)
+    elif flw_status in IN_FLIGHT_STATUSES:
+        return "still_pending"
+    else:
+        expense.status = ExpenseStatus.FAILED
+        provider_message = data.get("provider_response", {}).get("message")
+        expense.payout_error = (
+            provider_message or f"Transfer failed (status: {flw_status or 'unknown'})"
         )
-    expense.raw_payout_payload = result
-    _complete_payout(db, actor, expense, result.get("reference") or expense.payout_reference)
+
     db.commit()
-    db.refresh(expense)
-    return expense
-
-
-async def resend_payout_otp(db: Session, expense: Expense) -> None:
-    if expense.status != ExpenseStatus.AWAITING_OTP:
-        raise ConflictError("This expense is not awaiting an authorization code")
-    try:
-        await monnify_service.resend_transfer_otp(expense.payout_reference)
-    except MonnifyError as e:
-        raise GatewayError(f"Could not resend code: {e.message}")
+    return "ok"
 
 
 def mark_paid_manually(
     db: Session, actor: Member, expense: Expense, payout_reference: str
 ) -> Expense:
-    """Fallback for when the automated transfer can't be used (e.g. Monnify
+    """Fallback for when the automated transfer can't be used (e.g.
     disbursement isn't enabled on this account yet) — the treasurer sent the
     money themselves and is just recording proof of it."""
     if expense.status not in (ExpenseStatus.FAILED, ExpenseStatus.PENDING):
@@ -211,7 +201,7 @@ def mark_paid_manually(
     _check_balance(db, expense)
     expense.manual_payout = True
     expense.payout_error = None
-    _complete_payout(db, actor, expense, payout_reference)
+    _complete_payout(db, actor.user_id, expense, payout_reference)
     db.commit()
     db.refresh(expense)
     return expense

@@ -28,8 +28,10 @@ async def initiate_payment(
         db, current_user, collection, body.redirect_url
     )
     return PayInitOut(
-        checkout_url=payment.checkout_url,
         payment_reference=payment.payment_reference,
+        va_account_number=payment.va_account_number,
+        va_bank_name=payment.va_bank_name,
+        va_expires_at=payment.va_expires_at,
     )
 
 

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
-import { register, setToken } from '../lib/api'
+import { register } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Register() {
@@ -35,13 +35,18 @@ export default function Register() {
     setLoading(true)
     try {
       await register(fullName.trim(), email.trim().toLowerCase(), password)
-    } catch {
-      // Backend unreachable — issue a local session so the app is navigable
-      setToken('local-session')
+      await refresh()
+      navigate('/communities')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not create your account. Please try again.'
+      setServerError(
+        msg.toLowerCase().includes('already registered')
+          ? 'This email is already registered. Try logging in instead.'
+          : msg,
+      )
+    } finally {
+      setLoading(false)
     }
-    await refresh()
-    navigate('/communities')
-    setLoading(false)
   }
 
   return (

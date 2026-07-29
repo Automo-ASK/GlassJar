@@ -44,9 +44,9 @@ export default function CreateExpense() {
     setVerifyError('')
   }
 
-  // Auto-verify once a 10-digit account number and a bank are both set —
-  // no button to click. Debounced so it doesn't fire on every keystroke, and
-  // guarded against stale responses if the input changes mid-request.
+  // Auto-verify once a 10-digit account number and a bank are both set — no
+  // button to click. Debounced, and guarded against stale responses if the
+  // input changes mid-request.
   useEffect(() => {
     const trimmed = accountNumber.trim()
     if (!bankCode || !/^\d{10}$/.test(trimmed)) return
@@ -162,8 +162,8 @@ export default function CreateExpense() {
             )}
             {verifyError && <p className="text-[12px] text-error font-bold">{verifyError}</p>}
             {verifiedName && (
-              <div className="flex items-center gap-2 border-2 border-primary bg-primary-container/30 px-3 py-2">
-                <CheckCircle size={14} className="text-primary flex-shrink-0" />
+              <div className="flex items-center gap-2 border-2 border-secondary bg-secondary-container/30 px-3 py-2">
+                <CheckCircle size={14} className="text-secondary flex-shrink-0" />
                 <p className="text-[13px] font-bold">{verifiedName}</p>
               </div>
             )}

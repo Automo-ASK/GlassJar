@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { ExternalLink, Banknote, Building2, AlertTriangle, RefreshCw } from 'lucide-react'
+import { ExternalLink, Banknote, Building2, AlertTriangle } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import LoadingState from '../components/ui/LoadingState'
 import ErrorState from '../components/ui/ErrorState'
-import {
-  getExpenses, getMembers, retryExpensePayout,
-  authorizeExpensePayout, resendExpenseOtp, markExpensePaidManually,
-} from '../lib/api'
+import { getExpenses, getMembers, retryExpensePayout, markExpensePaidManually } from '../lib/api'
 import type { Expense, CommunityMember, ExpenseStatus } from '../lib/types'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -16,10 +13,10 @@ function fmt(n: number) { return `₦${n.toLocaleString('en-NG')}` }
 
 function statusBadge(s: ExpenseStatus): { color: 'yellow' | 'blue' | 'green' | 'red'; label: string } {
   switch (s) {
-    case 'pending':      return { color: 'yellow', label: 'Sending…' }
-    case 'awaiting_otp':  return { color: 'blue',   label: 'Needs Authorization Code' }
+    case 'pending':       return { color: 'yellow', label: 'Sending…' }
+    case 'awaiting_otp':  return { color: 'blue',   label: 'Sending…' }
     case 'paid_out':      return { color: 'green',  label: 'Paid Out' }
-    case 'failed':         return { color: 'red',    label: 'Transfer Failed' }
+    case 'failed':        return { color: 'red',    label: 'Transfer Failed' }
   }
 }
 
@@ -35,10 +32,6 @@ export default function ExpenseApproval() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
-
-  const [otp, setOtp] = useState('')
-  const [authorizing, setAuthorizing] = useState(false)
-  const [resending, setResending] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
   const [manualOpen, setManualOpen] = useState(false)
@@ -71,25 +64,25 @@ export default function ExpenseApproval() {
 
   useEffect(() => { load() }, [expenseId, communityId])
 
-  const handleAuthorize = async () => {
-    if (!otp.trim()) { setActionError('Enter the authorization code'); return }
-    setAuthorizing(true); setActionError('')
-    try {
-      setExpense(await authorizeExpensePayout(expenseId, otp.trim()))
-      setOtp('')
-    } catch (e: unknown) {
-      setActionError(e instanceof Error ? e.message : 'Authorization failed')
-    } finally { setAuthorizing(false) }
-  }
+  const pollRef = useRef<number | null>(null)
 
-  const handleResend = async () => {
-    setResending(true); setActionError('')
-    try {
-      await resendExpenseOtp(expenseId)
-    } catch (e: unknown) {
-      setActionError(e instanceof Error ? e.message : 'Could not resend code')
-    } finally { setResending(false) }
-  }
+  useEffect(() => {
+    if (expense?.status === 'pending' || expense?.status === 'awaiting_otp') {
+      pollRef.current = window.setInterval(async () => {
+        if (!communityId) return
+        try {
+          const exps = await getExpenses(communityId)
+          const found = exps.find((e) => e.id === expenseId)
+          if (found) setExpense(found)
+        } catch {
+          // keep polling
+        }
+      }, 5000)
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [expense?.status, communityId, expenseId])
 
   const handleRetry = async () => {
     setRetrying(true); setActionError('')
@@ -193,8 +186,8 @@ export default function ExpenseApproval() {
 
       {/* Paid out proof */}
       {expense.status === 'paid_out' && (
-        <div className="border-2 border-black bg-primary-container p-4 flex items-center gap-3">
-          <Banknote size={16} className="text-primary flex-shrink-0" />
+        <div className="border-2 border-black bg-secondary-container/30 p-4 flex items-center gap-3">
+          <Banknote size={16} className="text-secondary flex-shrink-0" />
           <div>
             <p className="text-[12px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
               {expense.manual_payout ? 'Payout Recorded Manually' : 'Payout Confirmed'}
@@ -212,34 +205,10 @@ export default function ExpenseApproval() {
       )}
 
       {/* Still sending */}
-      {expense.status === 'pending' && (
+      {(expense.status === 'pending' || expense.status === 'awaiting_otp') && (
         <p className="text-[13px] text-on-surface-variant text-center">
-          Transfer in progress. Refresh in a moment.
+          Transfer in progress — this updates automatically once Flutterwave confirms it. Refresh in a moment.
         </p>
-      )}
-
-      {/* Awaiting OTP — admin/treasurer only */}
-      {expense.status === 'awaiting_otp' && canManage && (
-        <div className="border-2 border-black bg-white p-5 neo-shadow flex flex-col gap-3">
-          <p className="text-[13px] font-bold">
-            Monnify sent an authorization code to complete this transfer.
-          </p>
-          <input
-            autoFocus
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            placeholder="Enter code"
-            className="border-2 border-black px-3 py-2 text-[14px] font-bold bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <div className="flex gap-2">
-            <Button size="sm" loading={authorizing} onClick={handleAuthorize}>
-              Confirm & Pay
-            </Button>
-            <Button size="sm" variant="white" loading={resending} onClick={handleResend}>
-              <RefreshCw size={13} /> Resend Code
-            </Button>
-          </div>
-        </div>
       )}
 
       {/* Failed — retry via API or fall back to manual */}

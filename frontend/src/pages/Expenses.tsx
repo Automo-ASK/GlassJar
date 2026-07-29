@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Plus, Receipt, RefreshCw, Banknote, Clock, AlertTriangle, KeyRound } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -57,6 +57,25 @@ export default function Expenses() {
   }
 
   useEffect(() => { load() }, [communityId])
+
+  const pollRef = useRef<number | null>(null)
+  const hasInFlight = expenses.some((e) => e.status === 'pending' || e.status === 'awaiting_otp')
+
+  useEffect(() => {
+    if (hasInFlight) {
+      pollRef.current = window.setInterval(async () => {
+        try {
+          const exps = await getExpenses(communityId)
+          setExpenses(exps)
+        } catch {
+          // keep polling
+        }
+      }, 5000)
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [hasInFlight, communityId])
 
   const needsAttention = expenses.filter((e) => e.status === 'awaiting_otp' || e.status === 'failed')
 

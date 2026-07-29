@@ -12,8 +12,17 @@ class PayInitIn(BaseModel):
 
 
 class PayInitOut(BaseModel):
-    checkout_url: str
     payment_reference: str
+    # Transfer-to-this-account instructions — replaces the old hosted
+    # checkout redirect. checkout_url stays for schema compatibility but is
+    # unused under the Flutterwave virtual-account rail.
+    checkout_url: Optional[str] = None
+    va_account_number: Optional[str] = None
+    va_bank_name: Optional[str] = None
+    va_expires_at: Optional[datetime] = None
+    # The exact amount to transfer — may differ from the collection amount
+    # due to gateway fees; sending anything else can get bounced by the bank.
+    va_amount: Optional[Money] = None
 
 
 class PaymentOut(ORMModel):

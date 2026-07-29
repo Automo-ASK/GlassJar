@@ -158,7 +158,8 @@ export default function CreateCollection() {
             value={amountPerMember} onChange={(e) => setAmountPerMember(e.target.value)}
             error={fieldErrors.amount} />
 
-          <Input id="deadline" label="Deadline (optional)" type="datetime-local"
+          <Input id="deadline" label="Deadline (optional)" type="date"
+            min={new Date().toISOString().slice(0, 10)}
             value={deadline} onChange={(e) => setDeadline(e.target.value)} />
 
           {/* Budget allocation */}

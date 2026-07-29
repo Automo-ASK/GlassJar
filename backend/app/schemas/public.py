@@ -33,6 +33,14 @@ class PublicPaymentOut(BaseModel):
     paid_at: Optional[datetime] = None
     custom_fields: Optional[list[CustomFieldDef]] = None
     form_submitted: bool = False
+    # Transfer-to-this-account instructions — the payer completes payment by
+    # transferring directly, no hosted checkout redirect.
+    va_account_number: Optional[str] = None
+    va_bank_name: Optional[str] = None
+    va_expires_at: Optional[datetime] = None
+    # The exact amount to transfer — may differ from `amount` due to gateway
+    # fees; sending anything else can get silently bounced by the bank.
+    va_amount: Optional[Money] = None
 
 
 class PaymentFormIn(BaseModel):

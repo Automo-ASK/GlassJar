@@ -46,6 +46,18 @@ class Payment(Base):
     )
     checkout_url: Mapped[Optional[str]] = mapped_column(Text)
     payer_email: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Flutterwave dynamic virtual account — the payer transfers to this
+    # account/bank directly instead of a hosted checkout redirect.
+    flw_customer_id: Mapped[Optional[str]] = mapped_column(String(64))
+    flw_virtual_account_id: Mapped[Optional[str]] = mapped_column(String(64))
+    va_account_number: Mapped[Optional[str]] = mapped_column(String(32))
+    va_bank_name: Mapped[Optional[str]] = mapped_column(String(128))
+    va_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # The exact amount Flutterwave's virtual account expects (fee-inclusive —
+    # can differ from `amount`). Payers must be shown this, not `amount`,
+    # since a mismatched transfer gets silently reversed by the bank.
+    va_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     raw_verification_payload: Mapped[Optional[dict]] = mapped_column(JSON)
     form_responses: Mapped[Optional[dict]] = mapped_column(JSON)
     form_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -65,7 +77,7 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    provider: Mapped[str] = mapped_column(String(32), default="monnify")
+    provider: Mapped[str] = mapped_column(String(32), default="flutterwave")
     event_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     payload: Mapped[Optional[dict]] = mapped_column(JSON)
     outcome: Mapped[str] = mapped_column(String(64), default="received")
