@@ -30,7 +30,7 @@ export default function Navbar() {
       }`}
     >
       <div className="mx-auto flex h-[64px] max-w-[1400px] items-center justify-between px-4 md:px-8">
-        <button onClick={() => navigate('/')} aria-label="GlassJar home" className="shrink-0">
+        <button onClick={() => navigate('/')} aria-label="GlassJarr home" className="shrink-0">
           <Logo size="md" />
         </button>
 

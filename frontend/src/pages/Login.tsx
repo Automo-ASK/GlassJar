@@ -31,7 +31,7 @@ export default function Login() {
   }
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your GlassJar account.">
+    <AuthLayout title="Welcome back" subtitle="Sign in to your GlassJarr account.">
       {error && (
         <div className="mb-6 border-2 border-error bg-error-container p-3 text-[13px] font-bold text-error">
           {error}

@@ -45,7 +45,7 @@ export default function Register() {
   }
 
   return (
-    <AuthLayout title="Create your account" subtitle="Join GlassJar and bring transparency to your community.">
+    <AuthLayout title="Create your account" subtitle="Join GlassJarr and bring transparency to your community.">
       {serverError && (
         <div className="mb-6 border-2 border-error bg-error-container p-3 text-[13px] font-bold text-error">
           {serverError}

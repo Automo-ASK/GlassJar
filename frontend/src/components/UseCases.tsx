@@ -7,7 +7,7 @@ import useFund from '../assets/brand/use-fund.webp'
 import useProject from '../assets/brand/use-project.webp'
 
 /*
- * Straight from the PRD: GlassJar is not only class dues. Showing the range
+ * Straight from the PRD: GlassJarr is not only class dues. Showing the range
  * up front is what stops a rep deciding this is the wrong tool for a dinner
  * or a trip.
  */

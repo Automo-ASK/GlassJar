@@ -64,7 +64,7 @@ export default function Logo({ size = 'md', variant = 'default', markOnly = fals
           isWhite ? 'text-paper-100' : 'text-ink-900'
         }`}
       >
-        Glass<span className="text-rose-600">Jar</span>
+        Glass<span className="text-rose-600">Jarr</span>
       </span>
     </span>
   )

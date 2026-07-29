@@ -51,7 +51,7 @@ export default function AuthLayout({
 
         <div className="relative p-10">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold-400">
-            GlassJar
+            GlassJarr
           </p>
           <p className="mt-5 max-w-[13ch] font-display text-[clamp(2rem,3.4vw,2.75rem)] uppercase leading-[0.95]">
             See who paid.

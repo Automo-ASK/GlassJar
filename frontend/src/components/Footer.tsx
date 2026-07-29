@@ -56,7 +56,7 @@ export default function Footer() {
 
         <div className="mt-12 flex flex-col justify-between gap-2 border-t border-paper-100/20 pt-6 sm:flex-row">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-100/40">
-            © 2026 GlassJar
+            © 2026 GlassJarr
           </p>
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper-100/40">
             Built for African student communities

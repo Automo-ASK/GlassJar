@@ -54,7 +54,7 @@ export default function Contrast() {
           </div>
 
           <div data-reveal className="bg-teal-400 p-7 text-ink-900 sm:p-10">
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em]">With GlassJar</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em]">With GlassJarr</p>
             <p className="mt-2 font-display text-[22px] uppercase leading-none">The ledger</p>
 
             <ul className="mt-7">
