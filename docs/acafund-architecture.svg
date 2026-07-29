@@ -2,7 +2,7 @@
   <rect width="1440" height="960" fill="#ffffff"/>
 
   <!-- Title -->
-  <text x="60" y="66" font-size="34" font-weight="700" fill="#0f172a">AcaFund -- Architecture &amp; Money Flow</text>
+  <text x="60" y="66" font-size="34" font-weight="700" fill="#0f172a">GlassJar -- Architecture &amp; Money Flow</text>
   <text x="60" y="98" font-size="17" fill="#64748b">Financial operating system for African student communities · custodial model with manual, verifiable payouts</text>
 
   <!-- Legend -->

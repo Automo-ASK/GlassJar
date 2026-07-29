@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 /*
- * AcaFund design tokens — "raw ledger".
+ * GlassJar design tokens — "raw ledger".
  *
  * Source palette:
  *   Taupe Grey  #54494B — warm ink. Everything reads against this, not black.

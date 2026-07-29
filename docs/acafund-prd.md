@@ -1,4 +1,4 @@
-# AcaFund Product Requirements Document
+# GlassJar Product Requirements Document
 
 **Version:** 2.1
 **Status:** Active — 7-Day Live Ship
@@ -30,7 +30,7 @@
 
 ## 1. Product Summary
 
-AcaFund (also called GlassJar) is a financial operating system for student communities in Nigeria. A class rep creates a community, builds the member roster without requiring members to sign up, opens a collection for any purpose (class dues, social events, trips, fundraisers), and shares one payment link. Every member can see live who has paid, who has not, and where every naira went. The system is transparent by default, trustless by design, and built for the informal financial reality of African student life.
+GlassJar (also called GlassJar) is a financial operating system for student communities in Nigeria. A class rep creates a community, builds the member roster without requiring members to sign up, opens a collection for any purpose (class dues, social events, trips, fundraisers), and shares one payment link. Every member can see live who has paid, who has not, and where every naira went. The system is transparent by default, trustless by design, and built for the informal financial reality of African student life.
 
 The product is post-hackathon and shipping live in 5 days. This PRD captures the complete product as it should exist not as it was rushed. Every dev builds from this document, not from the existing codebase.
 
@@ -50,7 +50,7 @@ This creates four compounding failures:
 
 **Accountability failure.** When the class spends collected funds, there is no formal approval chain. A treasurer submits expenses informally and members have to take their word for it.
 
-AcaFund replaces this entire informal stack with one platform. The payment is collected through a verified gateway, reconciled automatically, and logged immutably. The ledger is visible to all members. Expenses require auditor approval and produce a public proof trail. The class rep goes from accountant to administrator.
+GlassJar replaces this entire informal stack with one platform. The payment is collected through a verified gateway, reconciled automatically, and logged immutably. The ledger is visible to all members. Expenses require auditor approval and produce a public proof trail. The class rep goes from accountant to administrator.
 
 ---
 
@@ -60,7 +60,7 @@ The following decisions reflect where the product is going based on all received
 
 ### 3.1 Expand the Use Case: Not Just Class Dues
 
-The original concept was narrow class reps collecting semester dues. The feedback points to a much broader use case that the infrastructure already supports. AcaFund should be the go-to platform for any informal money collection among a defined group of people in a student context:
+The original concept was narrow class reps collecting semester dues. The feedback points to a much broader use case that the infrastructure already supports. GlassJar should be the go-to platform for any informal money collection among a defined group of people in a student context:
 
 - Class dues (original)
 - Social events (owambe, outings, dinners)
@@ -78,7 +78,7 @@ The product needs to present itself this way from the landing page through the c
 
 The single biggest user complaint: "I paid, left the page, came back, and the system does not recognize my payment. I have to start over."
 
-This is a trust-destroying experience. If AcaFund cannot reliably confirm that a payment happened, it fails at its core job. The fix is not a better polling loop. The fix is:
+This is a trust-destroying experience. If GlassJar cannot reliably confirm that a payment happened, it fails at its core job. The fix is not a better polling loop. The fix is:
 
 1. Squad webhook is the source of truth. The moment Squad confirms the payment server-side, the entry is marked paid, regardless of whether the user's browser is open.
 2. The user's payment session is stored by reference on the backend not in sessionStorage. The browser can crash, the user can close and reopen, and the system still knows where they are.
@@ -88,7 +88,7 @@ This is a trust-destroying experience. If AcaFund cannot reliably confirm that a
 
 ### 3.3 Dispute Resolution Is a Feature, Not a Support Process
 
-A dispute mechanism was mentioned in feedback. This needs to be a first-class product feature, not an email to a support address. Users must be able to submit a dispute from within the app, attach their payment proof, and receive a resolution within 12 to 24 hours. The AcaFund admin team resolves disputes from a dedicated internal dashboard.
+A dispute mechanism was mentioned in feedback. This needs to be a first-class product feature, not an email to a support address. Users must be able to submit a dispute from within the app, attach their payment proof, and receive a resolution within 12 to 24 hours. The GlassJar admin team resolves disputes from a dedicated internal dashboard.
 
 ### 3.4 Full UI Revamp Is Non-Negotiable Before Launch
 
@@ -98,13 +98,13 @@ The hackathon frontend is a rough draft. Before real users touch this product, e
 
 The payment gateway migration from Monnify to Squad is a hard requirement. All payment-related feature work targets Squad from day one. No new Monnify code is written. Existing Monnify code is deprecated after Squad is verified in staging.
 
-### 3.6 The Admin Dashboard Is AcaFund's Control Room
+### 3.6 The Admin Dashboard Is GlassJar's Control Room
 
-AcaFund needs to know what is happening on the platform at all times. The internal admin dashboard (visible to the AcaFund team, not community admins) shows real-time user activity, payment volumes, dispute queues, and system health. This is both a trust tool and a business intelligence tool.
+GlassJar needs to know what is happening on the platform at all times. The internal admin dashboard (visible to the GlassJar team, not community admins) shows real-time user activity, payment volumes, dispute queues, and system health. This is both a trust tool and a business intelligence tool.
 
 ### 3.7 Revenue Strategy Is Embedded in the Product
 
-AcaFund charges 1.5% per verified transaction. This is collected transparently. The Pro tier at 5,000 naira per community per month unlocks advanced features. Institution licensing is a later play. Every product decision must be compatible with these revenue streams becoming active without disrupting current users.
+GlassJar charges 1.5% per verified transaction. This is collected transparently. The Pro tier at 5,000 naira per community per month unlocks advanced features. Institution licensing is a later play. Every product decision must be compatible with these revenue streams becoming active without disrupting current users.
 
 ---
 
@@ -112,13 +112,13 @@ AcaFund charges 1.5% per verified transaction. This is collected transparently. 
 
 ### Persona 1 Aisha, the Class Rep (Primary)
 
-200-level Economics student at UNILAG. Appointed class rep by her peers. Runs 4 to 6 collections per academic year covering dues, department events, and faculty levies. Currently spends 3 hours per collection manually verifying screenshots on WhatsApp and updating an Excel sheet she shares with no one. Has been accused of mismanagement twice because there was no public record. She uses AcaFund to create a collection, share a link, and never answer "have you confirmed my payment?" again.
+200-level Economics student at UNILAG. Appointed class rep by her peers. Runs 4 to 6 collections per academic year covering dues, department events, and faculty levies. Currently spends 3 hours per collection manually verifying screenshots on WhatsApp and updating an Excel sheet she shares with no one. Has been accused of mismanagement twice because there was no public record. She uses GlassJar to create a collection, share a link, and never answer "have you confirmed my payment?" again.
 
 **Job to be done:** Run a collection start to finish without manual verification or defending myself against accusations.
 
 ### Persona 2 Chidi, the Treasurer (Secondary)
 
-Appointed by the admin. Manages disbursement after collection closes. Needs to submit expenses, get independent approval, and produce a paper trail that proves every kobo was spent correctly. Currently writes expense reports in a Word document and sends them to no one. He uses AcaFund to submit an expense with a receipt, get auditor approval, mark it paid, and point the class to the transparency report.
+Appointed by the admin. Manages disbursement after collection closes. Needs to submit expenses, get independent approval, and produce a paper trail that proves every kobo was spent correctly. Currently writes expense reports in a Word document and sends them to no one. He uses GlassJar to submit an expense with a receipt, get auditor approval, mark it paid, and point the class to the transparency report.
 
 **Job to be done:** Spend collected funds without anyone questioning my honesty.
 
@@ -128,9 +128,9 @@ Third-year student. Gets a WhatsApp link from Aisha. Does not want to download a
 
 **Job to be done:** Pay what I owe quickly, get confirmation, and verify that collected money was used correctly.
 
-### Persona 4 The AcaFund Admin (Internal)
+### Persona 4 The GlassJar Admin (Internal)
 
-The AcaFund team member monitoring the platform. Needs to see all communities, payment volumes, dispute queues, flagged transactions, and system health from one dashboard. Resolves disputes submitted by users within 12 to 24 hours.
+The GlassJar team member monitoring the platform. Needs to see all communities, payment volumes, dispute queues, flagged transactions, and system health from one dashboard. Resolves disputes submitted by users within 12 to 24 hours.
 
 **Job to be done:** Keep the platform healthy and resolve user problems before they become public complaints.
 
@@ -138,7 +138,7 @@ The AcaFund team member monitoring the platform. Needs to see all communities, p
 
 ## 5. Product Vision
 
-AcaFund is the financial operating system for student communities in Africa. Any class, association, or student group can collect money for any purpose, govern spending transparently, and prove accountability to every member from a single shared link. The class rep stops being the cashier. The ledger is the cashier.
+GlassJar is the financial operating system for student communities in Africa. Any class, association, or student group can collect money for any purpose, govern spending transparently, and prove accountability to every member from a single shared link. The class rep stops being the cashier. The ledger is the cashier.
 
 In 18 months: active in 10+ Nigerian universities, processing over 100 million naira in verified collections per semester, with the first institution-level licensing agreement signed.
 
@@ -215,7 +215,7 @@ The system must expose a public transparency report for any collection accessibl
 
 ### FR-09: Disputes
 
-The system must allow any user who believes their payment was not confirmed to submit a dispute from within the app. The dispute must capture: the member name, collection, payment amount, payment method, reference number, and an optional screenshot upload. The AcaFund admin team must receive a notification for every new dispute. The admin dashboard must show all open disputes with status. Every dispute must be resolved within 12 to 24 hours. The submitter must be notified by email on resolution.
+The system must allow any user who believes their payment was not confirmed to submit a dispute from within the app. The dispute must capture: the member name, collection, payment amount, payment method, reference number, and an optional screenshot upload. The GlassJar admin team must receive a notification for every new dispute. The admin dashboard must show all open disputes with status. Every dispute must be resolved within 12 to 24 hours. The submitter must be notified by email on resolution.
 
 ### FR-10: AI Treasury Assistant
 
@@ -223,7 +223,7 @@ The system must expose an AI assistant within each community that answers questi
 
 ### FR-11: Internal Admin Dashboard
 
-The AcaFund team (not community admins) must have access to an internal dashboard that shows: all communities on the platform, total payment volume, active disputes, flagged transactions, new registrations, community health metrics, and system error rates. The dashboard must support searching and filtering by community, date range, and status.
+The GlassJar team (not community admins) must have access to an internal dashboard that shows: all communities on the platform, total payment volume, active disputes, flagged transactions, new registrations, community health metrics, and system error rates. The dashboard must support searching and filtering by community, date range, and status.
 
 ### FR-12: Landing Page
 
@@ -406,7 +406,7 @@ Acceptance test: Log in as a treasurer. Confirm "New Collection" button is visib
 
 **F-P01: Guest Payment via Public Share Link (Squad)**
 Priority: SHIP
-Description: Any person opens the public share link without logging in. They see the collection name, type, and target. They search for their name on the roster. They click Pay. Squad checkout opens. They complete payment by card or bank transfer. The checkout is styled and branded for AcaFund where Squad's API permits.
+Description: Any person opens the public share link without logging in. They see the collection name, type, and target. They search for their name on the roster. They click Pay. Squad checkout opens. They complete payment by card or bank transfer. The checkout is styled and branded for GlassJar where Squad's API permits.
 Acceptance test: Open the share link in an incognito browser. Find a name. Click Pay. Complete payment in Squad sandbox. Confirm the entry is marked paid in the admin view within 30 seconds.
 
 **F-P02: Payment Session Persistence**
@@ -456,12 +456,12 @@ Acceptance test: Log in as treasurer. Trigger payment sync on an unresolved sess
 
 **F-P11: Payment Dispute Submission**
 Priority: SHIP
-Description: Any user who believes their payment was not confirmed can submit a dispute from the app. The dispute form captures: name, collection name, amount, payment method, transaction reference, and an optional screenshot upload. The dispute is stored and the AcaFund admin team is notified.
+Description: Any user who believes their payment was not confirmed can submit a dispute from the app. The dispute form captures: name, collection name, amount, payment method, transaction reference, and an optional screenshot upload. The dispute is stored and the GlassJar admin team is notified.
 Acceptance test: Submit a dispute with all required fields. Confirm it appears in the internal admin dashboard. Confirm the submitter sees a "dispute submitted" state with a reference number.
 
 **F-P12: Dispute Resolution by Admin**
 Priority: SHIP
-Description: The AcaFund admin team views all open disputes in the internal dashboard, can review the submitted reference and screenshot, and resolves the dispute by either confirming the payment (which triggers the manual mark flow) or rejecting it with a reason. The submitter is emailed on resolution.
+Description: The GlassJar admin team views all open disputes in the internal dashboard, can review the submitted reference and screenshot, and resolves the dispute by either confirming the payment (which triggers the manual mark flow) or rejecting it with a reason. The submitter is emailed on resolution.
 Acceptance test: Submit a dispute. Open the admin dashboard. Resolve the dispute as confirmed. Confirm the member's entry is marked paid. Confirm the submitter receives an email.
 
 ---
@@ -562,8 +562,8 @@ Acceptance test: Open every screen on a physical or simulated iPhone SE screen. 
 
 **F-UX06: Real Landing Page**
 Priority: SHIP
-Description: The landing page communicates what AcaFund does in 10 seconds. It shows the three primary use cases (class dues, social events, fundraisers). It shows real platform stats (pulled from the backend or seeded with real launch data). It has a single clear call to action for class reps. It does not contain placeholder text.
-Acceptance test: Show the landing page to someone who has never heard of AcaFund. Within 10 seconds they must be able to describe what it does and what they would do next. Confirm no hardcoded stats appear on the live version.
+Description: The landing page communicates what GlassJar does in 10 seconds. It shows the three primary use cases (class dues, social events, fundraisers). It shows real platform stats (pulled from the backend or seeded with real launch data). It has a single clear call to action for class reps. It does not contain placeholder text.
+Acceptance test: Show the landing page to someone who has never heard of GlassJar. Within 10 seconds they must be able to describe what it does and what they would do next. Confirm no hardcoded stats appear on the live version.
 
 ---
 
@@ -596,8 +596,8 @@ Acceptance test: Follow the README from a fresh machine clone with no prior proj
 
 **F-INF06: Internal Admin Dashboard**
 Priority: SHIP
-Description: A separate dashboard accessible only to the AcaFund team (not community admins). Shows: total communities, total members, payment volume by day/week, active disputes, new signups by day, system error rates, and failed webhook deliveries. Accessible via a separate route with AcaFund-level admin credentials.
-Acceptance test: Log in as AcaFund admin. Confirm the dashboard shows real data. Create a payment in staging. Confirm it appears in the volume chart. Submit a dispute. Confirm it appears in the dispute queue.
+Description: A separate dashboard accessible only to the GlassJar team (not community admins). Shows: total communities, total members, payment volume by day/week, active disputes, new signups by day, system error rates, and failed webhook deliveries. Accessible via a separate route with GlassJar-level admin credentials.
+Acceptance test: Log in as GlassJar admin. Confirm the dashboard shows real data. Create a payment in staging. Confirm it appears in the volume chart. Submit a dispute. Confirm it appears in the dispute queue.
 
 ---
 
@@ -605,7 +605,7 @@ Acceptance test: Log in as AcaFund admin. Confirm the dashboard shows real data.
 
 ### Flow 1: Class Rep Sets Up for the First Time
 
-1. Rep lands on acafund.com, reads the landing page, clicks "Create your community"
+1. Rep lands on GlassJar.com, reads the landing page, clicks "Create your community"
 2. Registers with email and password
 3. Creates a community enters class name, level, department
 4. Bulk-adds the class roster (200 names) via paste or CSV upload
@@ -641,7 +641,7 @@ Acceptance test: Log in as AcaFund admin. Confirm the dashboard shows real data.
 1. Student pays, returns to page, waits 30 minutes, still not confirmed
 2. Page surfaces "Having trouble? Submit a dispute."
 3. Student submits dispute: name, collection, amount, reference, screenshot
-4. AcaFund admin receives notification in internal dashboard
+4. GlassJar admin receives notification in internal dashboard
 5. Admin reviews reference against Squad records within 12 hours
 6. Admin confirms payment entry is manually marked paid
 7. Student receives resolution email
@@ -705,7 +705,7 @@ These will not be built in the current sprint. Raising them is not a priority co
 
 - WhatsApp or SMS notifications (email ships first)
 - Native iOS or Android app
-- AcaFund Pro subscription billing and enforcement
+- GlassJar Pro subscription billing and enforcement
 - Institution-level licensing and contracts
 - Multi-currency support
 - Third-party API access
@@ -927,7 +927,7 @@ Every feature from section 9 is assigned to a day and a department. The PM assig
 |------------|-------------|------|----------------|--------|
 | F-AI01 | Ledger-grounded AI assistant: answers from real community data only, no hallucination | FULL | Ask "How much collected?" Confirm answer matches ledger SUM exactly. Ask about nonexistent payment. Confirm denial. | TODO |
 | F-AI02 | 6 starter prompts in assistant UI | FE | Open assistant. Confirm 6 prompts visible. Click each. Confirm accurate data-driven responses. | TODO |
-| F-INF06 | Internal AcaFund admin dashboard: communities, volume, disputes, signups, error rates | FULL | Log in as AcaFund admin. Create payment in staging. Confirm in volume chart. Submit dispute. Confirm in queue. | TODO |
+| F-INF06 | Internal GlassJar admin dashboard: communities, volume, disputes, signups, error rates | FULL | Log in as GlassJar admin. Create payment in staging. Confirm in volume chart. Submit dispute. Confirm in queue. | TODO |
 | F-UX06 | Real landing page: live stats, three use cases (dues, events, fundraisers), CTA, no placeholder text | FE | Show to unfamiliar person. They describe the product in 10 seconds. No hardcoded stats visible in production. | TODO |
 | F-A06 | Email verification on registration | FULL | Register, skip email verification, try to create community. Confirm blocked with verification prompt. | TODO |
 | F-A07 | Password reset via email with 30-minute link | FULL | Request reset, use link, set new password. Confirm old password no longer works. | TODO |
@@ -978,5 +978,5 @@ These rules are in effect from the first line of code written under this PRD.
 
 ---
 
-*AcaFund is the financial operating system for student communities.*
+*GlassJar is the financial operating system for student communities.*
 *Built by Automo-ASK.*

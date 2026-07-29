@@ -45,8 +45,8 @@ export default function PublicPay() {
     setPayError('')
     try {
       const { payment_reference } = await publicPay(shareToken, email.trim() || undefined)
-      sessionStorage.setItem('acafund_payment_reference', payment_reference)
-      sessionStorage.setItem('acafund_pay_token', shareToken)
+      sessionStorage.setItem('GlassJar_payment_reference', payment_reference)
+      sessionStorage.setItem('GlassJar_pay_token', shareToken)
       navigate(
         `/payment-return?paymentReference=${encodeURIComponent(payment_reference)}&pay_token=${encodeURIComponent(shareToken)}`
       )

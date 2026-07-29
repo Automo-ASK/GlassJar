@@ -21,13 +21,13 @@ export default function PaymentReturn() {
 
   const reference =
     searchParams.get('paymentReference') ??
-    sessionStorage.getItem('acafund_payment_reference') ??
+    sessionStorage.getItem('GlassJar_payment_reference') ??
     ''
   const collectionId = Number(
-    searchParams.get('collection_id') ?? sessionStorage.getItem('acafund_payment_collection_id')
+    searchParams.get('collection_id') ?? sessionStorage.getItem('GlassJar_payment_collection_id')
   )
   const payToken =
-    searchParams.get('pay_token') ?? sessionStorage.getItem('acafund_pay_token') ?? ''
+    searchParams.get('pay_token') ?? sessionStorage.getItem('GlassJar_pay_token') ?? ''
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [payment, setPayment] = useState<PublicPayment | null>(null)
@@ -50,8 +50,8 @@ export default function PaymentReturn() {
   const handleConfirmed = useCallback((pay: PublicPayment) => {
     setPayment(pay)
     if (pollRef.current) clearInterval(pollRef.current)
-    sessionStorage.removeItem('acafund_payment_reference')
-    sessionStorage.removeItem('acafund_payment_collection_id')
+    sessionStorage.removeItem('GlassJar_payment_reference')
+    sessionStorage.removeItem('GlassJar_payment_collection_id')
     if (pay.custom_fields && pay.custom_fields.length > 0 && !pay.form_submitted) {
       setFields(pay.custom_fields)
       setPhase('form')

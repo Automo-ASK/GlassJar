@@ -10,7 +10,7 @@ from app.services.collections import active_collection_summaries
 from app.services.ledger import get_balance
 
 _SYSTEM_PROMPT = """\
-You are a treasury assistant for an AcaFund community savings group.
+You are a treasury assistant for an GlassJar community savings group.
 Answer questions ONLY from the financial context provided. If the context
 does not contain enough information to answer, say so explicitly — never
 guess or invent a number. Be concise and direct."""

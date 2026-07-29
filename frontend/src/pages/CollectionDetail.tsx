@@ -72,8 +72,8 @@ export default function CollectionDetail() {
     setActionError(''); setPaying(true)
     try {
       const { payment_reference } = await initiatePayment(collectionId)
-      sessionStorage.setItem('acafund_payment_collection_id', String(collectionId))
-      sessionStorage.setItem('acafund_payment_reference', payment_reference)
+      sessionStorage.setItem('GlassJar_payment_collection_id', String(collectionId))
+      sessionStorage.setItem('GlassJar_payment_reference', payment_reference)
       navigate(
         `/payment-return?paymentReference=${encodeURIComponent(payment_reference)}&collection_id=${collectionId}`
       )

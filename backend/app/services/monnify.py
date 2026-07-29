@@ -128,8 +128,8 @@ class MonnifyService:
         Returns dict with keys: account_number, bank_name, account_name,
         status (lowercase).
         """
-        account_reference = f"acafund-comm-{community_id}"
-        customer_email = f"community-{community_id}@acafund.app"
+        account_reference = f"GlassJar-comm-{community_id}"
+        customer_email = f"community-{community_id}@GlassJar.app"
         resp = await self._authed_request(
             "POST",
             f"{settings.monnify_base_url}/api/v2/bank-transfer/reserved-accounts",

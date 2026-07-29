@@ -1,6 +1,6 @@
-# AcaFund
+# GlassJar
 
-AcaFund is a financial management platform for African student communities. A
+GlassJar is a financial management platform for African student communities. A
 class rep creates a community, builds the member roster (no signup needed from
 members), opens a collection, and shares one payment link — everyone can see
 live who has paid, who hasn't, and where every naira went.

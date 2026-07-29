@@ -67,7 +67,7 @@ async def _attempt_disbursement(db: Session, actor: Member, expense: Expense) ->
     in-flight response, or FAILED if the gateway rejects it outright —
     create-and-pay never blocks on a gateway hiccup once the expense itself
     is safely recorded."""
-    reference = f"acafund-exp-{expense.id}-{uuid4().hex[:8]}"
+    reference = f"GlassJar-exp-{expense.id}-{uuid4().hex[:8]}"
     narration = expense.title[:100]
     try:
         result = await flutterwave_service.initiate_transfer(

@@ -69,7 +69,7 @@ def setup_paying_member(client, monnify_mock):
 def test_member_pay_creates_checkout(client, monnify_mock):
     _, _, _, pay = setup_paying_member(client, monnify_mock)
     assert pay["checkout_url"] == CHECKOUT_URL
-    assert pay["payment_reference"].startswith("acafund-")
+    assert pay["payment_reference"].startswith("GlassJar-")
 
 
 def test_pay_reuses_inflight_checkout(client, monnify_mock):
@@ -236,7 +236,7 @@ def test_reserved_account_direct_transfer_credits_ledger(client, monnify_mock):
             "transactionReference": "MNFY|RT|1",
             "amountPaid": 5000,
             "product": {
-                "reference": f"acafund-comm-{community['id']}",
+                "reference": f"GlassJar-comm-{community['id']}",
                 "type": "RESERVED_ACCOUNT",
             },
         },

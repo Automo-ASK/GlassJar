@@ -181,7 +181,7 @@ async def member_pay(
         db,
         collection=collection,
         amount=entry.amount_due,
-        reference=f"acafund-{collection.id}-{entry.id}-{uuid4().hex[:8]}",
+        reference=f"GlassJar-{collection.id}-{entry.id}-{uuid4().hex[:8]}",
         customer_email=user.email,
         customer_name=user.full_name,
         payer_email=user.email,
@@ -200,12 +200,12 @@ async def public_pay(
     if collection.status != CollectionStatus.ACTIVE:
         raise InvalidInputError("Collection is not active")
 
-    email = payer_email or f"guest-{uuid4().hex[:8]}@acafund.app"
+    email = payer_email or f"guest-{uuid4().hex[:8]}@GlassJar.app"
     return await _create_virtual_account_payment(
         db,
         collection=collection,
         amount=collection.amount_per_member,
-        reference=f"acafund-{collection.id}-guest-{uuid4().hex[:8]}",
+        reference=f"GlassJar-{collection.id}-guest-{uuid4().hex[:8]}",
         customer_email=email,
         customer_name="Guest",
         payer_email=payer_email,

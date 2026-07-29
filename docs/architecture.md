@@ -1,4 +1,4 @@
-# AcaFund — Product & Architecture Blueprint (v2 rebuild)
+# GlassJar — Product & Architecture Blueprint (v2 rebuild)
 
 This document captures the decisions behind the post-hackathon rebuild: what the
 product is, who it serves, and how the backend is structured. The hackathon code

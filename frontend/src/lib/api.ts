@@ -9,20 +9,20 @@ import type {
 
 const BASE_URL =
   import.meta.env.VITE_API_URL ??
-  (import.meta.env.PROD ? 'https://acafund-6auo.onrender.com' : 'http://localhost:8000')
+  (import.meta.env.PROD ? 'https://GlassJar-6auo.onrender.com' : 'http://localhost:8000')
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
 function getToken(): string | null {
-  return localStorage.getItem('acafund_token')
+  return localStorage.getItem('GlassJar_token')
 }
 
 export function setToken(t: string) {
-  localStorage.setItem('acafund_token', t)
+  localStorage.setItem('GlassJar_token', t)
 }
 
 function clearToken() {
-  localStorage.removeItem('acafund_token')
+  localStorage.removeItem('GlassJar_token')
 }
 
 export function hasToken(): boolean {

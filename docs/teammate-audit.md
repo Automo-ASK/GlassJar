@@ -1,4 +1,4 @@
-# AcaFund / GlassJar — Code Audit
+# GlassJar / GlassJar — Code Audit
 
 Scope: `backend/` (FastAPI + SQLAlchemy + Postgres), `frontend/` (React/Vite), deployment
 manifests (`render.yaml`, `docker-compose.yml`). Read in full, not sampled.
@@ -228,14 +228,14 @@ The **reserved-account / direct-transfer branch does not do this**. It reads `am
 corroborating call back to Monnify:
 
 ```python
-if account_reference.startswith("acafund-comm-"):
+if account_reference.startswith("GlassJar-comm-"):
     ...
     record_direct_credit(db=db, community_id=community.id, amount=amount_paid, ...)
 ```
 
 Signature verification is also **optional** — `if signature:` — because "sandbox doesn't send
 it." That means: in production, anyone who discovers a community's reserved-account reference
-(predictable — `acafund-comm-{id}`, sequential ints) can `POST /webhooks/monnify` with no
+(predictable — `GlassJar-comm-{id}`, sequential ints) can `POST /webhooks/monnify` with no
 signature header and an arbitrary `amountPaid`, and the ledger will credit it as real money,
 no callback to Monnify required. This is the single highest-severity item in the codebase —
 it's a direct path to fabricating treasury balance.
@@ -422,8 +422,8 @@ swap. What needs attention:
    - The webhook route is literally `/webhooks/monnify` (`payments.py:176`) and its payload
      parsing (`eventData`, `paymentReference`, `product.reference`) is Monnify's exact webhook
      shape, inlined into the router instead of the service.
-   - `payment_reference` format `f"acafund-{collection_id}-{current_user.id}-{uuid4().hex[:8]}"`
-     and `account_reference` format `f"acafund-comm-{community_id}"` are internal, so those
+   - `payment_reference` format `f"GlassJar-{collection_id}-{current_user.id}-{uuid4().hex[:8]}"`
+     and `account_reference` format `f"GlassJar-comm-{community_id}"` are internal, so those
      survive a provider swap unchanged — that part's fine.
 
 2. **Recommended shape for the migration**, given what's here:
@@ -456,7 +456,7 @@ Worth separating two things that are currently blurred together, since they need
 fixes:
 
 **What's already correct:** `render.yaml` already provisions Postgres as an independent Render
-managed database (`databases: - name: acafund-db`), wired into the API via `DATABASE_URL` from
+managed database (`databases: - name: GlassJar-db`), wired into the API via `DATABASE_URL` from
 `fromDatabase`. In production, the database is *not* inside the API process — it's already a
 separate managed service with its own lifecycle, backups, and scaling. That part doesn't need
 architectural change.
