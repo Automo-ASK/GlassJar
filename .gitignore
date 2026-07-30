@@ -1,2 +1,7 @@
 .DS_Store
 linklock/
+
+# Environment files (never commit)
+.env
+.env.*
+!.env.example
