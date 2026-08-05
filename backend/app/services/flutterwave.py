@@ -87,12 +87,15 @@ class FlutterwaveService:
         return self._token
 
     def _headers(self, idempotency_key: Optional[str], token: str) -> dict:
-        return {
+        headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "X-Trace-Id": uuid.uuid4().hex,
             "X-Idempotency-Key": idempotency_key or uuid.uuid4().hex,
         }
+        if settings.flutterwave_relay_secret:
+            headers["X-Relay-Auth"] = settings.flutterwave_relay_secret
+        return headers
 
     async def _authed_request(
         self,

@@ -35,6 +35,10 @@ class Settings(BaseSettings):
         "https://idp.flutterwave.com/realms/flutterwave/protocol/openid-connect/token"
     )
     flutterwave_base_url: str = "https://f4bexperience.flutterwave.com"
+    # When set, outbound Flutterwave API calls are routed through an external
+    # relay (see flutterwave-relay/) so they exit from a whitelisted IP. Leave
+    # blank to call Flutterwave directly.
+    flutterwave_relay_secret: str = ""
     # Optional: pin virtual-account creation to a specific partner bank code
     # instead of letting Flutterwave auto-assign one. Leave blank for
     # auto-assignment. Set this if your auto-assigned bank is having issues
