@@ -136,9 +136,40 @@ class FlutterwaveService:
                 "name": {"first": first or "Guest", "last": last or first or "Payer"},
             },
         )
-        if resp.status_code not in (200, 201):
-            raise FlutterwaveError(resp.status_code, resp.text)
-        return resp.json()["data"]
+        if resp.status_code in (200, 201):
+            return resp.json()["data"]
+
+        # If Flutterwave already has this email (from an earlier attempt that
+        # didn't finish on our side), don't bail — look up the existing record
+        # and reuse it so the payment can proceed.
+        if resp.status_code == 409:
+            try:
+                error_type = resp.json().get("error", {}).get("type")
+            except ValueError:
+                error_type = None
+            if error_type == "CUSTOMER_ALREADY_EXISTS":
+                existing = await self._get_customer_by_email(email)
+                if existing:
+                    return existing
+
+        raise FlutterwaveError(resp.status_code, resp.text)
+
+    async def _get_customer_by_email(self, email: str) -> Optional[dict]:
+        resp = await self._authed_request("GET", "/customers", params={"email": email})
+        if resp.status_code != 200:
+            return None
+        try:
+            data = resp.json().get("data")
+        except ValueError:
+            return None
+        if isinstance(data, list):
+            for entry in data:
+                if (entry.get("email") or "").lower() == email.lower():
+                    return entry
+            return data[0] if data else None
+        if isinstance(data, dict) and data:
+            return data
+        return None
 
     async def create_virtual_account(
         self,

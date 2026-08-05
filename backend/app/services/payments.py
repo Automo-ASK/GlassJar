@@ -108,19 +108,34 @@ async def _create_virtual_account_payment(
     db.add(payment)
     db.flush()
 
+    existing_customer_id = (
+        db.query(Payment.flw_customer_id)
+        .filter(
+            Payment.payer_email == customer_email,
+            Payment.flw_customer_id.isnot(None),
+        )
+        .order_by(Payment.id.desc())
+        .limit(1)
+        .scalar()
+    )
+
     try:
-        customer = await flutterwave_service.create_customer(customer_email, customer_name)
+        if existing_customer_id:
+            customer_id = existing_customer_id
+        else:
+            customer = await flutterwave_service.create_customer(customer_email, customer_name)
+            customer_id = customer["id"]
         account = await flutterwave_service.create_virtual_account(
             reference=payment.payment_reference,
             amount=amount,
-            customer_id=customer["id"],
+            customer_id=customer_id,
             narration=f"{collection.title} - {customer_name}",
         )
     except FlutterwaveError as e:
         db.rollback()
         raise GatewayError(f"Payment gateway error: {e.message}")
 
-    payment.flw_customer_id = customer["id"]
+    payment.flw_customer_id = customer_id
     payment.flw_virtual_account_id = account.get("id")
     payment.va_account_number = account.get("account_number")
     payment.va_bank_name = account.get("account_bank_name")
